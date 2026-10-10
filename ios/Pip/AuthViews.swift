@@ -16,16 +16,16 @@ struct AuthView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     HStack(spacing: 8) { Image(systemName: "leaf.fill"); Text("pip").font(.system(size: 32, weight: .bold, design: .rounded)) }.foregroundStyle(PipTheme.green).padding(.top, 30)
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Little moments.\nA little more calm.").font(.system(size: 38, weight: .semibold, design: .serif))
-                        Text("Feeds, pumping, and everyone who cares.\nAll together in one small place.").foregroundStyle(.secondary).lineSpacing(4)
+                        Text("Track feeds and pumping").font(.largeTitle.bold())
+                        Text("Share your baby’s activity history with your family.").foregroundStyle(.secondary).lineSpacing(4)
                     }
                     Card {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text(store.sessionExpired ? "Welcome back" : registering ? "Make room for your family" : "Welcome back").font(.title3.bold())
+                            Text(store.sessionExpired ? "Welcome back" : registering ? "Create account" : "Welcome back").font(.title3.bold())
                             if registering { TextField("Your name", text: $name).textContentType(.name).textFieldStyle(.roundedBorder) }
                             TextField("Email", text: $email).textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled().textFieldStyle(.roundedBorder)
                             SecureField("Password · 10+ characters", text: $password).textContentType(registering ? .newPassword : .password).textFieldStyle(.roundedBorder)
-                            if let failure { Text(failure).font(.footnote).foregroundStyle(.red) }
+                            if let failure { Text(failure).font(.body).foregroundStyle(.red) }
                             PrimaryButton(title: registering ? "Create account" : "Sign in", busy: busy) {
                                 busy = true; failure = nil
                                 Task {
@@ -34,11 +34,10 @@ struct AuthView: View {
                                     busy = false
                                 }
                             }.disabled(email.isEmpty || password.count < 10 || (registering && name.trimmingCharacters(in: .whitespaces).isEmpty))
-                            Button(registering ? "Already have an account? Sign in" : "New here? Create an account") { registering.toggle(); failure = nil }.font(.footnote).frame(maxWidth: .infinity)
-                            if !registering { Button("Forgot password?") { recovery = true }.font(.footnote).frame(maxWidth: .infinity) }
+                            Button(registering ? "Already have an account? Sign in" : "New here? Create an account") { registering.toggle(); failure = nil }.font(.body.weight(.medium)).frame(maxWidth: .infinity, minHeight: 48)
+                            if !registering { Button("Forgot password?") { recovery = true }.font(.body.weight(.medium)).frame(maxWidth: .infinity, minHeight: 48) }
                         }
                     }
-                    Label("Made for the middle of the night.", systemImage: "moon.stars").font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }.padding(24)
             }.background(PipTheme.background)
                 .onAppear { if store.sessionExpired { registering = false; email = store.user?.email ?? "" } }
@@ -93,20 +92,20 @@ struct FamilySetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     Image(systemName: "person.2.circle.fill").font(.system(size: 60)).foregroundStyle(PipTheme.green).padding(.top, 35)
-                    Text("A small circle.\nA lot of love.").font(.system(size: 36, weight: .semibold, design: .serif))
-                    Text("Create your family, or join the people already caring for your little one.").foregroundStyle(.secondary)
+                    Text("Set up your family").font(.largeTitle.bold())
+                    Text("Create a family or join using an email invitation.").foregroundStyle(.secondary)
                     Picker("Setup", selection: $joining) { Text("Create a family").tag(false); Text("Join a family").tag(true) }.pickerStyle(.segmented)
                     Card { VStack(spacing: 18) {
                         if joining {
-                            Text("Paste the invitation code from your email. Sign in with the address that received the invitation.").font(.subheadline).foregroundStyle(.secondary)
+                            Text("Paste the invitation code from your email. Sign in with the address that received the invitation.").font(.body).foregroundStyle(.secondary)
                             TextField("Invitation code", text: $code).textInputAutocapitalization(.characters).autocorrectionDisabled().textFieldStyle(.roundedBorder)
                         } else {
                             TextField("Family name", text: $familyName).textFieldStyle(.roundedBorder)
                             TextField("Baby’s name", text: $babyName).textFieldStyle(.roundedBorder)
                             DatePicker("Birthday", selection: $birthday, in: ...Date(), displayedComponents: .date)
                         }
-                        if let failure { Text(failure).font(.footnote).foregroundStyle(.red) }
-                        PrimaryButton(title: joining ? "Join your family" : "Let’s begin", busy: busy) {
+                        if let failure { Text(failure).font(.body).foregroundStyle(.red) }
+                        PrimaryButton(title: joining ? "Join your family" : "Create family", busy: busy) {
                             busy = true; failure = nil
                             Task {
                                 do { if joining { try await store.join(code: code) } else { try await store.createFamily(name: familyName, babyName: babyName, birthday: birthday) } }

@@ -24,11 +24,10 @@ struct FamilyView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
                         Image(systemName: "leaf.fill").font(.largeTitle).foregroundStyle(PipTheme.green)
-                        Text(store.family?.name ?? "Your family").font(.system(size: 30, weight: .semibold, design: .serif))
-                        Text("A little village, always in the loop.").foregroundStyle(.secondary)
+                        Text(store.family?.name ?? "Your family").font(.largeTitle.bold())
                     }.padding(.vertical, 12)
                 }.listRowBackground(Color.clear)
-                Section("Little ones") {
+                Section("Babies") {
                     ForEach(store.babies) { baby in
                         Button { store.selectedBabyId = baby.id; store.persist() } label: {
                             HStack { Label(baby.name, systemImage: "face.smiling").foregroundStyle(.primary); Spacer(); if store.baby?.id == baby.id { Image(systemName: "checkmark").foregroundStyle(PipTheme.green) } }
@@ -36,25 +35,25 @@ struct FamilyView: View {
                     }
                     Button("Add a baby", systemImage: "plus") { newBaby = true }
                 }
-                Section("Your village") {
+                Section("Caregivers") {
                     ForEach(members) { member in
-                        HStack { VStack(alignment: .leading, spacing: 4) { Text(member.name); Text(member.role == "owner" ? "Family owner" : "Caregiver").font(.caption).foregroundStyle(.secondary) }; Spacer(); if member.id == store.user?.id { Text("You").font(.caption).foregroundStyle(.secondary) } }
+                        HStack { VStack(alignment: .leading, spacing: 4) { Text(member.name); Text(member.role == "owner" ? "Family owner" : "Caregiver").font(.body).foregroundStyle(.secondary) }; Spacer(); if member.id == store.user?.id { Text("You").font(.body).foregroundStyle(.secondary) } }
                             .swipeActions { if member.role != "owner" && (store.family?.role == "owner" || member.id == store.user?.id) { Button("Remove", role: .destructive) { remove = member } } }
                     }
                 }
                 if store.family?.role == "owner" {
                     Section { TextField("Caregiver’s email", text: $email).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
                         Button { inviting = true; invitationStatus = nil; Task { do { try await store.invite(email: email); invitationStatus = "Invitation sent. It’s valid for 7 days."; email = "" } catch { invitationStatus = error.localizedDescription }; inviting = false } } label: { HStack { Text("Send invitation"); Spacer(); if inviting { ProgressView() } else { Image(systemName: "paperplane") } } }.disabled(email.isEmpty || inviting)
-                        if let invitationStatus { Text(invitationStatus).font(.footnote).foregroundStyle(.secondary) }
-                    } header: { Text("Invite someone you trust") } footer: { Text("Caregivers can see and edit your family’s feeds and pumping sessions.") }
+                        if let invitationStatus { Text(invitationStatus).font(.body).foregroundStyle(.secondary) }
+                    } header: { Text("Invite a caregiver") } footer: { Text("Caregivers can see and edit your family’s feeds and pumping sessions.") }
                 }
                 Section {
                     Button("Account & privacy", systemImage: "person.crop.circle") { account = true }
                     ShareLink(item: CSVExport(text: exportCSV()), preview: SharePreview("Pip activity export")) { Label("Export activities (CSV)", systemImage: "square.and.arrow.up") }
                     Button("Sign out", role: .destructive) { signOut = true }.disabled(!store.pending.isEmpty || store.syncing)
-                    if !store.pending.isEmpty { Text("Sync or resolve pending changes before signing out.").font(.footnote).foregroundStyle(.secondary) }
+                    if !store.pending.isEmpty { Text("Sync or resolve pending changes before signing out.").font(.body).foregroundStyle(.secondary) }
                 }
-                Section { Text("Pip keeps a protected copy on this iPhone so tracking works offline. Your family’s data syncs to Cloudflare when you reconnect.").font(.footnote).foregroundStyle(.secondary) }
+                Section { Text("Pip keeps a protected copy on this iPhone so tracking works offline. Your family’s data syncs to Cloudflare when you reconnect.").font(.body).foregroundStyle(.secondary) }
             }.navigationTitle("Family")
                 .task { await reloadMembers() }
                 .refreshable { await store.refreshProfile(); await reloadMembers() }
@@ -86,7 +85,7 @@ struct AddBabyView: View {
         TextField("Baby’s name", text: $name)
         DatePicker("Birthday", selection: $birthday, in: ...Date(), displayedComponents: .date)
         if let failure { Text(failure).foregroundStyle(.red) }
-    }.navigationTitle("A new little one").toolbar {
+    }.navigationTitle("Add a baby").toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
         ToolbarItem(placement: .confirmationAction) { Button("Add") { busy = true; Task { do { try await store.addBaby(name: name, birthday: birthday); dismiss() } catch { failure = error.localizedDescription }; busy = false } }.disabled(name.isEmpty || busy) }
     } } }
@@ -109,7 +108,7 @@ struct AccountView: View {
                 Button("Update password") { perform { try await store.changePassword(current: current, new: new); current = ""; new = ""; message = "Password changed. Other devices are now signed out." } }.disabled(current.isEmpty || new.count < 10 || busy)
             }
             Section {
-                Text(store.family?.role == "owner" ? "Deleting your account also permanently deletes your family, baby profiles, and activity history for all caregivers." : "Deleting your account removes your login and family access. Shared activity history stays with your family.").font(.footnote).foregroundStyle(.secondary)
+                Text(store.family?.role == "owner" ? "Deleting your account also permanently deletes your family, baby profiles, and activity history for all caregivers." : "Deleting your account removes your login and family access. Shared activity history stays with your family.").font(.body).foregroundStyle(.secondary)
                 SecureField("Password to confirm deletion", text: $deletionPassword)
                 Button("Delete account", role: .destructive) { confirm = true }.disabled(deletionPassword.isEmpty || busy)
             } header: { Text("Delete account") }

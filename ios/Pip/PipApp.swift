@@ -5,7 +5,7 @@ import SwiftUI
     @Environment(\.scenePhase) private var scenePhase
     var body: some Scene {
         WindowGroup {
-            RootView().environment(store).tint(PipTheme.green)
+            RootView().environment(store).tint(PipTheme.green).font(.title3).controlSize(.large)
                 .task { await store.start() }
                 .task(id: scenePhase) {
                     guard scenePhase == .active else { return }
@@ -40,7 +40,7 @@ struct Card<Content: View>: View {
 struct PrimaryButton: View {
     var title: String; var busy = false; var action: () -> Void
     var body: some View {
-        Button(action: action) { HStack { Spacer(); if busy { ProgressView().tint(.white) } else { Text(title).fontWeight(.semibold) }; Spacer() }.padding(.vertical, 12) }
+        Button(action: action) { HStack { Spacer(); if busy { ProgressView().tint(.white) } else { Text(title).font(.title3.weight(.semibold)) }; Spacer() }.frame(minHeight: 40).padding(.vertical, 8) }
             .buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle(radius: 18)).disabled(busy)
     }
 }
@@ -59,6 +59,6 @@ struct RootView: View {
                 }
             }
         }
-        .alert("A little heads-up", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
+        .alert("Unable to complete action", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
     }
 }

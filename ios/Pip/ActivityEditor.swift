@@ -34,17 +34,28 @@ struct ActivityEditor: View {
                         }.onChange(of: left) { _, _ in duration = left + right }.onChange(of: right) { _, _ in duration = left + right }
                     } else {
                         Section(kind == .pump ? "Milk expressed" : "Bottle details") {
-                            HStack { TextField("Amount", text: $volume).keyboardType(.decimalPad); Picker("Unit", selection: $ounces) { Text("mL").tag(false); Text("oz").tag(true) }.pickerStyle(.segmented).frame(width: 130) }
+                            VStack(alignment: .leading, spacing: 12) {
+                                TextField("Amount", text: $volume).keyboardType(.decimalPad).font(.largeTitle.weight(.medium)).frame(minHeight: 56).accessibilityLabel("Milk amount")
+                                HStack(spacing: 12) {
+                                    ForEach([false, true], id: \.self) { useOunces in
+                                        Button { ounces = useOunces } label: {
+                                            Text(useOunces ? "oz" : "mL").font(.title3.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 44)
+                                        }.buttonStyle(.bordered).tint(ounces == useOunces ? PipTheme.green : .secondary)
+                                            .accessibilityLabel(useOunces ? "Fluid ounces" : "Milliliters")
+                                            .accessibilityAddTraits(ounces == useOunces ? .isSelected : [])
+                                    }
+                                }
+                            }
                                 .onChange(of: ounces) { old, new in
                                     if let value = Double(volume), value > 0 { volume = String(format: new ? "%.1f" : "%.0f", new ? value / 29.5735 : value * 29.5735) }
                                 }
                             if kind == .bottle { Picker("Milk", selection: $milk) { Text("Breast milk").tag("breastMilk"); Text("Formula").tag("formula") } }
-                            HStack {
-                                ForEach(ounces ? [2, 3, 4, 5] : [30, 60, 90, 120], id: \.self) { amount in Button("\(amount)") { volume = String(amount) }.buttonStyle(.bordered).frame(maxWidth: .infinity) }
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 70), spacing: 12)], spacing: 12) {
+                                ForEach(ounces ? [2, 3, 4, 5] : [30, 60, 90, 120], id: \.self) { amount in Button { volume = String(amount) } label: { Text("\(amount)").font(.title3.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered) }
                             }
                         }
                     }
-                    Section("A little note (optional)") { TextField("Anything you’d like to remember", text: $notes, axis: .vertical).lineLimit(3...6).onChange(of: notes) { _, value in if value.count > 2000 { notes = String(value.prefix(2000)) } } }
+                    Section("Notes (optional)") { TextField("Add a note", text: $notes, axis: .vertical).lineLimit(3...6).onChange(of: notes) { _, value in if value.count > 2000 { notes = String(value.prefix(2000)) } } }
                     if existing != nil { Section { Button("Delete activity", role: .destructive) { confirmDelete = true } } }
                 }
             }.navigationTitle(existing == nil ? "Log \(kind == .pump ? "pumping" : kind == .bottle ? "a bottle" : "a feed")" : "Activity details").navigationBarTitleDisplayMode(.inline)
@@ -87,7 +98,7 @@ struct HistoryView: View {
                     Picker("Activity", selection: $kind) { Text("All").tag(nil as ActivityKind?); ForEach(ActivityKind.allCases) { Text($0.title).tag(Optional($0)) } }.pickerStyle(.segmented)
                     SyncStatusView()
                 }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
-                if filtered.isEmpty { ContentUnavailableView("Little moments live here", systemImage: "clock", description: Text("Log an activity or adjust your filters.")) }
+                if filtered.isEmpty { ContentUnavailableView("No activities found", systemImage: "clock", description: Text("Log an activity or adjust your filters.")) }
                 ForEach(days, id: \.self) { day in
                     Section(day.formatted(date: .abbreviated, time: .omitted)) {
                         ForEach(filtered.filter { Calendar.current.isDate($0.startDate, inSameDayAs: day) }) { activity in
@@ -111,7 +122,7 @@ struct ConflictView: View {
             ForEach(Array(store.conflicts.keys).sorted(), id: \.self) { id in
                 Section {
                     if let a = store.activities.first(where: { $0.id == id }) { ActivityRow(activity: a) }
-                    Text(store.conflicts[id] ?? "").font(.footnote).foregroundStyle(.secondary)
+                    Text(store.conflicts[id] ?? "").font(.body).foregroundStyle(.secondary)
                     Button("Use the family’s version") { Task { await store.discardConflict(id) } }
                     Button("Retry with my version") { Task { do { try await store.keepConflict(id) } catch { store.error = error.localizedDescription } } }
                 }

@@ -10,21 +10,21 @@ struct FeedLiveActivity: Widget {
             VStack(spacing: 14) {
                 HStack {
                     Image(systemName: "leaf.fill").foregroundStyle(green)
-                    VStack(alignment: .leading, spacing: 3) { Text("\(context.attributes.babyName)’s feed").font(.headline); Text("\(context.state.side) breast\(context.state.paused ? " · paused" : "")").font(.caption).foregroundStyle(.secondary) }
+                    VStack(alignment: .leading, spacing: 3) { Text("\(context.attributes.babyName)’s feed").font(.headline); Text("\(context.state.side) breast\(context.state.paused ? " · paused" : "")").font(.body).foregroundStyle(.primary) }
                     Spacer()
-                    timer(context.state).font(.system(size: 32, weight: .light, design: .rounded)).monospacedDigit().frame(maxWidth: 130, alignment: .trailing)
+                    timer(context.state).font(.system(size: 32, weight: .medium, design: .rounded)).monospacedDigit().frame(maxWidth: 130, alignment: .trailing)
                 }
                 HStack(spacing: 12) {
                     Button(intent: SwitchBreastIntent(activityId: context.attributes.activityId)) { Label("Switch breast", systemImage: "arrow.left.arrow.right").frame(maxWidth: .infinity) }
                     Button(intent: PauseFeedIntent(activityId: context.attributes.activityId)) { Label(context.state.paused ? "Resume" : "Pause", systemImage: context.state.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity) }
-                }.buttonStyle(.bordered).tint(green)
+                }.font(.headline).buttonStyle(.bordered).controlSize(.large).tint(green)
             }.padding(18).activityBackgroundTint(Color(uiColor: .secondarySystemBackground)).activitySystemActionForegroundColor(green)
                 .widgetURL(URL(string: "pipbaby://feed"))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) { Label(context.attributes.babyName, systemImage: "heart.fill").font(.headline).foregroundStyle(.mint) }
                 DynamicIslandExpandedRegion(.trailing) { timer(context.state).font(.title2.monospacedDigit()).frame(width: 95) }
-                DynamicIslandExpandedRegion(.center) { Text("\(context.state.side) breast").font(.caption).foregroundStyle(.secondary) }
+                DynamicIslandExpandedRegion(.center) { Text("\(context.state.side) breast").font(.body).foregroundStyle(.primary) }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
                         Button(intent: SwitchBreastIntent(activityId: context.attributes.activityId)) { Label("Switch", systemImage: "arrow.left.arrow.right").frame(maxWidth: .infinity) }
