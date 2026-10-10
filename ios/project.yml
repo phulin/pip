@@ -19,6 +19,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.pip.baby
+        TARGETED_DEVICE_FAMILY: '1'
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
     info:
       path: Pip/Info.plist
       properties:

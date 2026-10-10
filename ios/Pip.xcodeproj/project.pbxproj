@@ -495,7 +495,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.pip.baby;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 			};
 			name = Debug;
 		};
@@ -511,7 +512,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.pip.baby;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 			};
 			name = Release;
 		};
