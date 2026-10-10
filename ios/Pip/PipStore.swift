@@ -19,7 +19,6 @@ import Network
     var inviteCode = ""
     private var token: String?
     private var monitor: NWPathMonitor?
-    private var syncingIDs: Set<String> = []
     var baby: Baby? { babies.first { $0.id == selectedBabyId } ?? babies.first }
     var visibleActivities: [CareActivity] { activities.filter { !$0.deleted && $0.babyId == baby?.id }.sorted { $0.startedAt > $1.startedAt } }
     var active: CareActivity? { visibleActivities.first { $0.isRunning } }
@@ -151,7 +150,7 @@ import Network
                         else { activities[i].revision = result.revision }
                     }
                     persist()
-                } catch let failure as APIError where failure.status == 409 {
+                } catch let failure as APIError where [400, 404, 409].contains(failure.status) {
                     conflicts[sent.id] = failure.message; persist()
                 }
             }
@@ -165,7 +164,10 @@ import Network
                 if let i = activities.firstIndex(where: { $0.id == a.id }) { activities[i] = a } else { activities.append(a) }
             }
             syncMessage = nil; persist(); await updateLiveActivities()
-        } catch { handle(error) }
+        } catch {
+            handle(error)
+            if let failure = error as? APIError, failure.status == 403 { await refreshProfile() }
+        }
     }
     // Explicit conflict resolution preserves the local draft until the caregiver chooses.
     func discardConflict(_ id: String) async {

@@ -14,6 +14,7 @@
 		22AC3414F3BE9468F23ECB50 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0A38FB9DBF0BA9A20FB8F9 /* TodayView.swift */; };
 		2FAE194BE5841EEFBAF00DE3 /* PipWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E89E4A82B7948596F72E0A96 /* PipWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		32D9BD732C153AF5DE5D7A45 /* FamilyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68ACCEE4076692F890ADE790 /* FamilyView.swift */; };
+		53D00AC0BB41752BEE489A8B /* LocalIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0442A2E1EE81DFDDC124DCD5 /* LocalIntegrationTests.swift */; };
 		6368F9A7D460431664D05C44 /* ActivityEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A307F095555D41A5291D7F4A /* ActivityEditor.swift */; };
 		6620472DCEAA05AB2C1E187C /* FeedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E621B7AFAE6C127274EA88D /* FeedIntents.swift */; };
 		69A4C2AF875D351135844CD9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4A1D04922425BF3F4F42545E /* Assets.xcassets */; };
@@ -56,6 +57,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0442A2E1EE81DFDDC124DCD5 /* LocalIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalIntegrationTests.swift; sourceTree = "<group>"; };
 		04DBF09B070F547C3EAEF3D3 /* PipApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipApp.swift; sourceTree = "<group>"; };
 		0876EA4D10BA81E968F7A472 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		18867E95AF1FECCBA6759073 /* PipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipStore.swift; sourceTree = "<group>"; };
@@ -105,6 +107,7 @@
 			isa = PBXGroup;
 			children = (
 				B91F2F6450900B16734CEB36 /* FeedTimerTests.swift */,
+				0442A2E1EE81DFDDC124DCD5 /* LocalIntegrationTests.swift */,
 			);
 			path = PipTests;
 			sourceTree = "<group>";
@@ -255,6 +258,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A464D14598DF829958B17B4D /* FeedTimerTests.swift in Sources */,
+				53D00AC0BB41752BEE489A8B /* LocalIntegrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -304,6 +308,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -465,6 +470,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

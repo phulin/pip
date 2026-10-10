@@ -51,6 +51,9 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources: [PipTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: Pip
 schemes:

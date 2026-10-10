@@ -27,7 +27,9 @@ import SwiftUI
 }
 enum PipTheme {
     static let green = Color("AccentColor")
-    static let background = Color(uiColor: .systemGroupedBackground)
+    static let background = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .systemGroupedBackground : UIColor(red: 0.965, green: 0.960, blue: 0.940, alpha: 1)
+    })
     static let card = Color(uiColor: .secondarySystemGroupedBackground)
     static let peach = Color(red: 0.90, green: 0.66, blue: 0.48)
 }

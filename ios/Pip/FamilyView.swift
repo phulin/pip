@@ -1,4 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+struct CSVExport: Transferable {
+    var text: String
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .commaSeparatedText) { value in Data(value.text.utf8) }.suggestedFileName("pip-activities.csv")
+    }
+}
 
 struct FamilyView: View {
     @Environment(PipStore.self) var store
@@ -42,7 +50,7 @@ struct FamilyView: View {
                 }
                 Section {
                     Button("Account & privacy", systemImage: "person.crop.circle") { account = true }
-                    ShareLink(item: exportCSV(), preview: SharePreview("Pip activity export")) { Label("Export activities (CSV)", systemImage: "square.and.arrow.up") }
+                    ShareLink(item: CSVExport(text: exportCSV()), preview: SharePreview("Pip activity export")) { Label("Export activities (CSV)", systemImage: "square.and.arrow.up") }
                     Button("Sign out", role: .destructive) { signOut = true }.disabled(!store.pending.isEmpty || store.syncing)
                     if !store.pending.isEmpty { Text("Sync or resolve pending changes before signing out.").font(.footnote).foregroundStyle(.secondary) }
                 }
@@ -58,7 +66,10 @@ struct FamilyView: View {
     }
     func reloadMembers() async { do { members = try await store.members() } catch { store.error = error.localizedDescription } }
     func exportCSV() -> String {
-        func escape(_ value: String) -> String { "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        func escape(_ value: String) -> String {
+            let safe = ["=", "+", "-", "@", "\t", "\r"].contains(where: { value.hasPrefix($0) }) ? "'" + value : value
+            return "\"" + safe.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
         return "Baby,Activity,Started,Ended,Left seconds,Right seconds,Volume mL,Milk,Notes\n" + store.activities.filter { !$0.deleted }.sorted { $0.startedAt < $1.startedAt }.map { a in
             [store.babies.first { $0.id == a.babyId }?.name ?? "", a.kind.title, a.startDate.ISO8601Format(), a.endedAt.map { Date(timeIntervalSince1970: $0 / 1000).ISO8601Format() } ?? "", String(Int(a.leftSeconds)), String(Int(a.rightSeconds)), String(a.volumeML), a.milk, a.notes].map(escape).joined(separator: ",")
         }.joined(separator: "\n")

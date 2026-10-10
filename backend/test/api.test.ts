@@ -76,6 +76,18 @@ describe('Pip API', () => {
     }
     expect((await request('/v1/family/activities', 'GET', undefined, a.token)).data.activities).toHaveLength(2);
   });
+  it('accepts Swift Codable omission of optional timestamps', async () => {
+    const a = await family();
+    const running = activity(a.babyId);
+    const { endedAt, ...swiftRunning } = running;
+    const first = await request(`/v1/family/activities/${running.id}`, 'PUT', swiftRunning, a.token);
+    expect(first.status).toBe(200);
+    expect(first.data.endedAt).toBeNull();
+    const { segmentStartedAt, ...swiftPaused } = { ...first.data, paused: true, mutationId: crypto.randomUUID() };
+    const paused = await request(`/v1/family/activities/${running.id}`, 'PUT', swiftPaused, a.token);
+    expect(paused.status).toBe(200);
+    expect(paused.data.segmentStartedAt).toBeNull();
+  });
   it('consumes reset codes once and invalidates existing sessions', async () => {
     const a = await account(); const code = 'B'.repeat(64);
     await env.DB.prepare('INSERT INTO password_resets VALUES (?, ?, ?)').bind(hash(code), a.user.id, Date.now() + 100000).run();

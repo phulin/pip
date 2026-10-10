@@ -41,6 +41,7 @@ app.post('/auth/register', async c => {
 });
 app.post('/auth/login', async c => {
   const data = credentials.parse(await c.req.json());
+  if (!(await c.env.AUTH_LIMITER.limit({ key: 'login:' + hash(data.email) })).success) fail(429, 'Too many attempts. Please wait a minute.');
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(data.email).first<User & { password_hash: string }>();
   const valid = await verifyPassword(data.password, user?.password_hash || '');
   if (!user || !valid) return fail(401, 'Email or password is incorrect.');
@@ -115,7 +116,10 @@ app.post('/v1/families', async c => {
 app.post('/v1/join', async c => {
   const { code } = z.object({ code: z.string().trim().min(10).max(100) }).parse(await c.req.json());
   if (!(await c.env.AUTH_LIMITER.limit({ key: 'join:' + c.get('user').id })).success) fail(429, 'Please wait before trying another code.');
-  const result = await c.env.DB.prepare("INSERT INTO members (user_id, family_id, role) SELECT ?, family_id, 'member' FROM invites WHERE code_hash = ? AND expires_at > ? AND email = ? ON CONFLICT(user_id) DO NOTHING").bind(c.get('user').id, hash(code.toUpperCase()), now(), c.get('user').email).run();
+  const [result] = await c.env.DB.batch([
+    c.env.DB.prepare("INSERT INTO members (user_id, family_id, role) SELECT ?, family_id, 'member' FROM invites WHERE code_hash = ? AND expires_at > ? AND email = ? ON CONFLICT(user_id) DO NOTHING").bind(c.get('user').id, hash(code.toUpperCase()), now(), c.get('user').email),
+    c.env.DB.prepare('DELETE FROM invites WHERE code_hash = ? AND email = ?').bind(hash(code.toUpperCase()), c.get('user').email)
+  ]);
   if (!result.meta.changes) fail(409, 'This invite is expired or invalid, or you already belong to a family.');
   return c.json({ ok: true });
 });
@@ -159,9 +163,9 @@ app.post('/v1/family/babies', async c => {
   return c.json({ id: babyId, ...data }, 201);
 });
 const activitySchema = z.object({
-  id, babyId: id, kind: z.enum(['breast','bottle','pump']), startedAt: z.number().min(0), endedAt: z.number().nullable(),
+  id, babyId: id, kind: z.enum(['breast','bottle','pump']), startedAt: z.number().min(0), endedAt: z.number().nullable().default(null),
   side: z.enum(['left','right']), leftSeconds: z.number().min(0).max(604800), rightSeconds: z.number().min(0).max(604800),
-  segmentStartedAt: z.number().nullable(), paused: z.boolean(), volumeML: z.number().min(0).max(5000),
+  segmentStartedAt: z.number().nullable().default(null), paused: z.boolean(), volumeML: z.number().min(0).max(5000),
   milk: z.enum(['breastMilk','formula']), notes: z.string().max(2000), deleted: z.boolean(),
   revision: z.number().int().min(0), mutationId: id
 }).superRefine((a, ctx) => {
