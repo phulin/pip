@@ -187,7 +187,7 @@ struct FeedCard: View {
                         }.accessibilityLabel("Switch to \(activity.side.other.rawValue) breast")
                     }
                     Button { control(.pause) } label: { Label(activity.paused ? "Resume" : "Pause", systemImage: activity.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity, minHeight: 56) }
-                }.font(.title3.weight(.semibold)).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 16))
+                }.font(.title2.weight(.semibold)).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 16))
                 Button { control(.finish) } label: { Text(activity.kind == .pump ? "Finish pumping" : activity.kind == .bottle ? "Finish bottle" : "Finish feed").font(.title3.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 52) }.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 16))
             }.padding(24).background(PipTheme.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
         }
