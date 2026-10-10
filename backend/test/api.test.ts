@@ -76,6 +76,23 @@ describe('Pip API', () => {
     }
     expect((await request('/v1/family/activities', 'GET', undefined, a.token)).data.activities).toHaveLength(2);
   });
+  it('saves running pump and bottle timers before they finish', async () => {
+    const a = await family();
+    for (const kind of ['pump', 'bottle']) {
+      const row = { ...activity(a.babyId), kind };
+      const path = `/v1/family/activities/${row.id}`;
+      const saved = await request(path, 'PUT', row, a.token);
+      expect(saved.status).toBe(200);
+      expect(saved.data.endedAt).toBeNull();
+      expect((await request(path, 'PUT', { ...saved.data, segmentStartedAt: null, mutationId: crypto.randomUUID() }, a.token)).status).toBe(400);
+      const paused = await request(path, 'PUT', { ...saved.data, paused: true, segmentStartedAt: null, leftSeconds: 60, volumeML: 80, mutationId: crypto.randomUUID() }, a.token);
+      expect(paused.status).toBe(200);
+      const finished = await request(path, 'PUT', { ...paused.data, endedAt: Date.now(), mutationId: crypto.randomUUID() }, a.token);
+      expect(finished.status).toBe(200);
+      expect(finished.data.volumeML).toBe(80);
+      expect(finished.data.leftSeconds).toBe(60);
+    }
+  });
   it('accepts Swift Codable omission of optional timestamps', async () => {
     const a = await family();
     const running = activity(a.babyId);

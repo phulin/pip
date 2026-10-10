@@ -170,10 +170,9 @@ const activitySchema = z.object({
   revision: z.number().int().min(0), mutationId: id
 }).superRefine((a, ctx) => {
   if (a.startedAt > now() + 300000 || (a.endedAt !== null && (a.endedAt < a.startedAt || a.endedAt > now() + 300000))) ctx.addIssue({ code: 'custom', message: 'Invalid activity times' });
-  if (a.kind !== 'breast' && a.endedAt === null) ctx.addIssue({ code: 'custom', message: 'Bottle and pumping logs must have an end time' });
   if (a.segmentStartedAt !== null && (a.segmentStartedAt < a.startedAt || a.segmentStartedAt > now() + 300000)) ctx.addIssue({ code: 'custom', message: 'Invalid timer segment' });
   if ((a.paused || a.endedAt !== null) && a.segmentStartedAt !== null) ctx.addIssue({ code: 'custom', message: 'Stopped timers cannot have an active segment' });
-  if (a.kind === 'breast' && !a.paused && a.endedAt === null && a.segmentStartedAt === null) ctx.addIssue({ code: 'custom', message: 'Running feeds need a timer segment' });
+  if (!a.paused && a.endedAt === null && a.segmentStartedAt === null) ctx.addIssue({ code: 'custom', message: 'Running activities need a timer segment' });
 });
 type ActivityRow = { payload: string; revision: number; mutation_id: string; created_by: string };
 const decode = (r: ActivityRow) => ({ ...JSON.parse(r.payload), revision: r.revision, mutationId: r.mutation_id, createdBy: r.created_by });

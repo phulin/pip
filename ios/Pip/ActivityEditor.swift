@@ -24,11 +24,11 @@ struct ActivityEditor: View {
             Form {
                 if let existing, existing.isRunning {
                     Section { FeedCard(activity: store.activities.first { $0.id == existing.id } ?? existing).listRowInsets(EdgeInsets()) }
-                    Section { Text("Finish this feed before editing its times or notes.").foregroundStyle(.secondary) }
+                    Section { Text("Finish this activity before editing its times or notes.").foregroundStyle(.secondary) }
                 } else {
                     Section("When") {
                         DatePicker("Started", selection: $start, in: ...Date())
-                        if kind != .bottle { Stepper("\(Int(duration)) minutes", value: $duration, in: 1...480, step: 1).disabled(kind == .breast) }
+                        if kind != .breast { Stepper("\(Int(duration)) minutes", value: $duration, in: 1...480, step: 1) }
                     }
                     if kind == .breast {
                         Section("Nursing time") {
@@ -52,11 +52,6 @@ struct ActivityEditor: View {
                                 .onChange(of: ounces) { old, new in
                                     if let value = Double(volume), value > 0 { volume = String(format: new ? "%.1f" : "%.0f", new ? value / 29.5735 : value * 29.5735) }
                                 }
-                            if kind == .pump {
-                                Picker("Side", selection: $side) {
-                                    ForEach(BreastSide.allCases, id: \.self) { Text($0.title).tag($0) }
-                                }
-                            }
                             if kind == .bottle { Picker("Milk", selection: $milk) { Text("Breast milk").tag("breastMilk"); Text("Formula").tag("formula") } }
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 70), spacing: 12)], spacing: 12) {
                                 ForEach(ounces ? [2, 3, 4, 5] : [30, 60, 90, 120], id: \.self) { amount in Button { volume = String(amount) } label: { Text("\(amount)").font(.title3.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered) }
@@ -71,11 +66,14 @@ struct ActivityEditor: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     if existing?.isRunning != true { ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.fontWeight(.semibold).disabled(!valid) } }
                 }
+                .onChange(of: store.activities.first(where: { $0.id == existing?.id })?.isRunning) { old, new in
+                    if old == true && new == false { dismiss() }
+                }
                 .onAppear {
                     if let a = existing {
                         start = a.startDate; volume = String(format: "%.0f", a.volumeML); notes = a.notes; milk = a.milk; side = a.side
                         left = a.leftSeconds / 60; right = a.rightSeconds / 60
-                        duration = a.kind == .breast ? left + right : max(1, ((a.endedAt ?? a.startedAt) - a.startedAt) / 60000)
+                        duration = a.kind == .breast ? left + right : max(1, a.total() > 0 ? a.total() / 60 : ((a.endedAt ?? a.startedAt) - a.startedAt) / 60000)
                     } else {
                         side = initialSide; milk = initialMilk
                     }
@@ -87,8 +85,8 @@ struct ActivityEditor: View {
         guard let baby = store.baby else { return }
         var a = existing ?? CareActivity(babyId: baby.id, kind: kind)
         a.startedAt = start.timeIntervalSince1970 * 1000
-        a.endedAt = min(Date().timeIntervalSince1970 * 1000, a.startedAt + (kind == .bottle ? 0 : duration * 60000))
-        a.leftSeconds = left * 60; a.rightSeconds = right * 60; a.segmentStartedAt = nil; a.paused = true
+        a.endedAt = min(Date().timeIntervalSince1970 * 1000, a.startedAt + duration * 60000)
+        a.leftSeconds = kind == .breast ? left * 60 : duration * 60; a.rightSeconds = kind == .breast ? right * 60 : 0; a.segmentStartedAt = nil; a.paused = true
         a.volumeML = volumeML; a.milk = milk; a.notes = notes; a.side = side
         store.save(a); UIImpactFeedbackGenerator(style: .light).impactOccurred(); dismiss()
     }

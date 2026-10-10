@@ -33,6 +33,22 @@ final class FeedTimerTests: XCTestCase {
         XCTAssertEqual(restored, feed)
         XCTAssertEqual(restored.total(at: start.addingTimeInterval(3600)), 3600)
     }
+    func testPumpAndBottleTimersSurviveRelaunchAndPause() throws {
+        for kind in [ActivityKind.pump, .bottle] {
+            var activity = runningFeed()
+            activity.kind = kind
+            activity.volumeML = 60
+            XCTAssertTrue(activity.isRunning)
+            activity.togglePause(at: start.addingTimeInterval(45))
+            var restored = try JSONDecoder().decode(CareActivity.self, from: JSONEncoder().encode(activity))
+            XCTAssertEqual(restored.total(at: start.addingTimeInterval(90)), 45)
+            XCTAssertEqual(restored.volumeML, 60)
+            restored.togglePause(at: start.addingTimeInterval(100))
+            restored.finish(at: start.addingTimeInterval(130))
+            XCTAssertEqual(restored.total(at: start.addingTimeInterval(200)), 75)
+            XCTAssertFalse(restored.isRunning)
+        }
+    }
     func testBackwardClockDoesNotCreateNegativeDuration() {
         XCTAssertEqual(runningFeed().total(at: start.addingTimeInterval(-100)), 0)
     }

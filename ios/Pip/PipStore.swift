@@ -21,7 +21,7 @@ import Network
     private var monitor: NWPathMonitor?
     var baby: Baby? { babies.first { $0.id == selectedBabyId } ?? babies.first }
     var visibleActivities: [CareActivity] { activities.filter { !$0.deleted && $0.babyId == baby?.id }.sorted { $0.startedAt > $1.startedAt } }
-    var active: CareActivity? { visibleActivities.first { $0.isRunning } }
+    var active: CareActivity? { visibleActivities.first { $0.isRunning && $0.kind == .breast } }
     var today: [CareActivity] { visibleActivities.filter { Calendar.current.isDateInToday($0.startDate) } }
     private struct Cache: Codable {
         var user: CareUser?; var family: Family?; var babies: [Baby]; var activities: [CareActivity]
@@ -129,6 +129,16 @@ import Network
         var a = CareActivity(babyId: baby.id, kind: .breast); a.side = side; a.segmentStartedAt = a.startedAt
         save(a)
         Task { await startLiveActivity(a, baby: baby) }
+    }
+    func startTracking(kind: ActivityKind, milk: String = "breastMilk") {
+        guard let baby, !visibleActivities.contains(where: { $0.kind == kind && $0.isRunning }) else { return }
+        var a = CareActivity(babyId: baby.id, kind: kind)
+        a.milk = milk; a.segmentStartedAt = a.startedAt
+        save(a)
+    }
+    func setVolume(id: String, volume: Double) {
+        guard var a = activities.first(where: { $0.id == id && $0.isRunning }) else { return }
+        a.volumeML = min(5000, max(0, volume)); save(a)
     }
     enum FeedAction { case switchSide, pause, finish }
     func controlFeed(id: String, action: FeedAction) async {

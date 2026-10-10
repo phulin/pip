@@ -8,9 +8,10 @@ import SwiftUI
             RootView().environment(store).tint(PipTheme.green).font(.title3).controlSize(.large)
                 .task { await store.start() }
                 .task(id: scenePhase) {
-                    guard scenePhase == .active else { return }
+                    guard scenePhase == .active else { store.persist(); return }
                     await store.refreshProfile()
                     while !Task.isCancelled {
+                        store.persist()
                         await store.sync()
                         try? await Task.sleep(for: .seconds(8))
                         if Task.isCancelled { break }

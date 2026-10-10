@@ -31,7 +31,7 @@ struct CareActivity: Codable, Identifiable, Equatable {
     var revision = 0
     var mutationId = UUID().uuidString.lowercased()
     var createdBy: String?
-    var isRunning: Bool { kind == .breast && endedAt == nil && !deleted }
+    var isRunning: Bool { endedAt == nil && !deleted }
     var startDate: Date { Date(timeIntervalSince1970: startedAt / 1000) }
     func seconds(_ side: BreastSide, at date: Date = .now) -> Double {
         let stored = side == .left ? leftSeconds : rightSeconds
