@@ -34,6 +34,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connect to the Pip development server on your Mac for local testing.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>PipAPIURL</key>

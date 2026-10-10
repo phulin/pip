@@ -26,6 +26,7 @@ targets:
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
         PipAPIURL: $(PIP_API_URL)
+        NSLocalNetworkUsageDescription: Connect to the Pip development server on your Mac for local testing.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleURLTypes:
