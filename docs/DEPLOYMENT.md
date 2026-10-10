@@ -5,18 +5,8 @@
 1. Create/select your Cloudflare account. Enable Workers Paid for outbound transactional email to arbitrary recipients and sufficient CPU for password hashing. No account or paid plan is created by this repository.
 2. In `backend`, run `npx wrangler login`. The production account and `pip-db` database ID are configured in `wrangler.jsonc`.
 3. The Worker custom domain is `api.mypip.baby`. Wrangler manages its DNS and TLS certificate.
-4. Onboard your domain under **Email Service → Email Sending**. Wait for sender DNS verification.
-5. Add these top-level keys to `wrangler.jsonc`, using your real verified domain:
-
-```json
-{
-  "send_email": [{ "name": "EMAIL" }],
-  "vars": { "EMAIL_FROM": "care@YOUR-VERIFIED-DOMAIN" },
-  "limits": { "cpu_ms": 5000 }
-}
-```
-
-
+4. Email Sending uses `mypip.baby`, with `noreply@mypip.baby` as the sender. Check domain status with `npx wrangler email sending settings mypip.baby` and DNS with `npx wrangler email sending dns get mypip.baby`.
+5. The `EMAIL` send binding, `EMAIL_FROM`, and password-hashing CPU limit are checked into `wrangler.jsonc`. Local development uses simulated email delivery; no remote email binding is enabled for local tests.
 6. Run `npm ci`, `npm run typecheck`, and `npm test`.
 7. Run `npm run db:remote` and then `npm run deploy`. Wrangler deploys to `https://api.mypip.baby`; the `workers.dev` endpoint is disabled.
 8. Request `/health` and verify it returns `{ "status": "ok", "service": "pip" }`. Then test signup, login, invitation delivery/acceptance, password reset, and two-device synchronization with test accounts. Rate limiting is 10 auth requests per IP per minute, plus per-email login limits and per-user invitation/join limits.

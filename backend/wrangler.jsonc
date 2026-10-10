@@ -8,6 +8,8 @@
   "workers_dev": false,
   "routes": [{"pattern": "api.mypip.baby", "custom_domain": true}],
   "limits": {"cpu_ms": 5000},
+  "send_email": [{"name": "EMAIL"}],
+  "vars": {"EMAIL_FROM": "noreply@mypip.baby"},
   "observability": {"enabled": true},
   "d1_databases": [{"binding": "DB", "database_name": "pip-db", "database_id": "f7277949-c946-4cae-9fdf-19fc0285f784", "migrations_dir": "migrations"}],
   "ratelimits": [{"name": "AUTH_LIMITER", "namespace_id": "71001", "simple": {"limit": 10, "period": 60}}],

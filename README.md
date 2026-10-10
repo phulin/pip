@@ -26,7 +26,7 @@ npm run dev
 
 Open `ios/Pip.xcodeproj`, choose the **Pip** scheme and an iPhone simulator, and run. Debug simulator builds automatically use `http://127.0.0.1:8787`; physical devices and Release builds use `https://api.mypip.baby`. No environment variable is needed. Create an account and family in the app. Local auth, tracking, and sync are real, backed by local D1.
 
-Email delivery deliberately returns an explicit configuration error until the Cloudflare Email Service binding and sender domain are configured. There is no pretend “email sent” fallback for invitations. Password-reset responses avoid revealing account existence.
+Invitations and password resets use Cloudflare Email Service from `noreply@mypip.baby`. Local development simulates delivery in Wrangler; it does not send real email. Password-reset responses avoid revealing account existence.
 
 After editing `ios/project.yml`, regenerate with:
 
