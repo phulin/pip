@@ -5,6 +5,9 @@ struct ActivityEditor: View {
     @Environment(\.dismiss) var dismiss
     var kind: ActivityKind
     var existing: CareActivity?
+    var initialSide: BreastSide = .left
+    var initialMilk = "breastMilk"
+    @State private var side: BreastSide = .left
     @State private var start = Date()
     @State private var duration = 15.0
     @State private var left = 10.0
@@ -49,6 +52,11 @@ struct ActivityEditor: View {
                                 .onChange(of: ounces) { old, new in
                                     if let value = Double(volume), value > 0 { volume = String(format: new ? "%.1f" : "%.0f", new ? value / 29.5735 : value * 29.5735) }
                                 }
+                            if kind == .pump {
+                                Picker("Side", selection: $side) {
+                                    ForEach(BreastSide.allCases, id: \.self) { Text($0.title).tag($0) }
+                                }
+                            }
                             if kind == .bottle { Picker("Milk", selection: $milk) { Text("Breast milk").tag("breastMilk"); Text("Formula").tag("formula") } }
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 70), spacing: 12)], spacing: 12) {
                                 ForEach(ounces ? [2, 3, 4, 5] : [30, 60, 90, 120], id: \.self) { amount in Button { volume = String(amount) } label: { Text("\(amount)").font(.title3.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.bordered) }
@@ -65,9 +73,11 @@ struct ActivityEditor: View {
                 }
                 .onAppear {
                     if let a = existing {
-                        start = a.startDate; volume = String(format: "%.0f", a.volumeML); notes = a.notes; milk = a.milk
+                        start = a.startDate; volume = String(format: "%.0f", a.volumeML); notes = a.notes; milk = a.milk; side = a.side
                         left = a.leftSeconds / 60; right = a.rightSeconds / 60
                         duration = a.kind == .breast ? left + right : max(1, ((a.endedAt ?? a.startedAt) - a.startedAt) / 60000)
+                    } else {
+                        side = initialSide; milk = initialMilk
                     }
                 }
                 .confirmationDialog("Delete this activity for everyone in the family?", isPresented: $confirmDelete, titleVisibility: .visible) { Button("Delete activity", role: .destructive) { if let existing { store.delete(existing) }; dismiss() } }
@@ -79,7 +89,7 @@ struct ActivityEditor: View {
         a.startedAt = start.timeIntervalSince1970 * 1000
         a.endedAt = min(Date().timeIntervalSince1970 * 1000, a.startedAt + (kind == .bottle ? 0 : duration * 60000))
         a.leftSeconds = left * 60; a.rightSeconds = right * 60; a.segmentStartedAt = nil; a.paused = true
-        a.volumeML = volumeML; a.milk = milk; a.notes = notes
+        a.volumeML = volumeML; a.milk = milk; a.notes = notes; a.side = side
         store.save(a); UIImpactFeedbackGenerator(style: .light).impactOccurred(); dismiss()
     }
 }

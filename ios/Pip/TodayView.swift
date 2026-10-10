@@ -3,9 +3,14 @@ import SwiftUI
 struct TodayView: View {
     @Environment(PipStore.self) var store
     @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var logging: ActivityKind?
+    @State private var logging: QuickLog?
     @State private var editing: CareActivity?
-    @State private var showStart = false
+    private struct QuickLog: Identifiable {
+        let id = UUID()
+        let kind: ActivityKind
+        var side: BreastSide = .left
+        var milk = "breastMilk"
+    }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -30,12 +35,19 @@ struct TodayView: View {
                                     Text(last.startDate, style: .relative).font(.title2.weight(.medium)) + Text(" ago").font(.title2.weight(.medium))
                                 }
                             } else { Text("No feeds logged yet").font(.title3) }
-                            PrimaryButton(title: "Start breastfeeding") { showStart = true }
                         } }
                     }
-                    VStack(spacing: 12) {
-                        quickAction("Log bottle", icon: "waterbottle.fill", color: PipTheme.peach) { logging = .bottle }
-                        quickAction("Log pumping", icon: "drop.fill", color: PipTheme.green) { logging = .pump }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
+                        quickAction("Feed Left", icon: "heart.fill", color: PipTheme.green) { store.startFeed(side: .left) }
+                            .disabled(store.active != nil)
+                            .opacity(store.active == nil ? 1 : 0.4)
+                        quickAction("Feed Right", icon: "heart.fill", color: PipTheme.green) { store.startFeed(side: .right) }
+                            .disabled(store.active != nil)
+                            .opacity(store.active == nil ? 1 : 0.4)
+                        quickAction("Pump Left", icon: "drop.fill", color: PipTheme.green) { logging = QuickLog(kind: .pump, side: .left) }
+                        quickAction("Pump Right", icon: "drop.fill", color: PipTheme.green) { logging = QuickLog(kind: .pump, side: .right) }
+                        quickAction("Breastmilk", icon: "waterbottle.fill", color: PipTheme.peach) { logging = QuickLog(kind: .bottle) }
+                        quickAction("Formula", icon: "waterbottle.fill", color: PipTheme.peach) { logging = QuickLog(kind: .bottle, milk: "formula") }
                     }
                     (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 16)) : AnyLayout(HStackLayout(spacing: 12))) {
                         stat("Feeds", value: "\(store.today.filter { $0.kind != .pump }.count)")
@@ -54,22 +66,21 @@ struct TodayView: View {
                 }.padding(22)
             }.background(PipTheme.background).toolbar(.hidden, for: .navigationBar)
                 .refreshable { await store.refreshProfile(); await store.sync() }
-                .confirmationDialog("Start on which side?", isPresented: $showStart, titleVisibility: .visible) {
-                    Button("Left breast") { store.startFeed(side: .left) }; Button("Right breast") { store.startFeed(side: .right) }
+                .sheet(item: $logging) { selection in
+                    ActivityEditor(kind: selection.kind, initialSide: selection.side, initialMilk: selection.milk)
                 }
-                .sheet(item: $logging) { kind in ActivityEditor(kind: kind) }
                 .sheet(item: $editing) { activity in ActivityEditor(kind: activity.kind, existing: activity) }
         }
     }
     func quickAction(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: icon).font(.title2).foregroundStyle(color).frame(width: 28)
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon).font(.title2).foregroundStyle(color)
                 Text(title).font(.title3.weight(.semibold)).foregroundStyle(.primary)
-                Spacer(minLength: 0)
-                Image(systemName: "plus").font(.title3.weight(.semibold)).foregroundStyle(PipTheme.green)
-            }.padding(.horizontal, 20).padding(.vertical, 16).frame(minHeight: 64)
+                    .fixedSize(horizontal: false, vertical: true)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(16).frame(minHeight: 100)
                 .background(PipTheme.card, in: RoundedRectangle(cornerRadius: 20))
+                .contentShape(RoundedRectangle(cornerRadius: 20))
         }.buttonStyle(.plain)
     }
     func stat(_ label: String, value: String) -> some View {
@@ -133,7 +144,7 @@ struct ActivityRow: View {
             Image(systemName: activity.kind.icon).font(.title3).foregroundStyle(activity.kind == .bottle ? PipTheme.peach : PipTheme.green).frame(width: 42, height: 46).background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 15))
             VStack(alignment: .leading, spacing: 5) {
                 HStack { Text(activity.kind.title).font(.title3.weight(.semibold)); if store.pending.contains(activity.id) { Image(systemName: "icloud.and.arrow.up").font(.body).foregroundStyle(.secondary) } }
-                Text(activity.kind == .breast ? "\(Int(activity.total() / 60)) min · \(activity.isRunning ? "in progress" : "L \(Int(activity.leftSeconds / 60)) / R \(Int(activity.rightSeconds / 60))")" : "\(Int(activity.volumeML)) mL\(activity.kind == .bottle ? (activity.milk == "formula" ? " · Formula" : " · Breast milk") : "")").font(.body).foregroundStyle(.secondary)
+                Text(activity.kind == .breast ? "\(Int(activity.total() / 60)) min · \(activity.isRunning ? "in progress" : "L \(Int(activity.leftSeconds / 60)) / R \(Int(activity.rightSeconds / 60))")" : "\(Int(activity.volumeML)) mL\(activity.kind == .bottle ? (activity.milk == "formula" ? " · Formula" : " · Breast milk") : " · \(activity.side.title)")").font(.body).foregroundStyle(.secondary)
                 Text(activity.startDate, format: .dateTime.hour().minute()).font(.body).foregroundStyle(.secondary)
                 if !activity.notes.isEmpty { Text(activity.notes).font(.body).foregroundStyle(.secondary).lineLimit(1) }
             }
