@@ -29,9 +29,10 @@ struct TodayView: View {
                     if !store.visibleActivities.contains(where: { $0.isRunning }) {
                         Card { VStack(alignment: .leading, spacing: 20) {
                             if let last = store.visibleActivities.first(where: { $0.kind != .pump && $0.endedAt != nil }) {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text("Last feed").font(.title3.weight(.medium))
-                                    Text(last.startDate, style: .relative).font(.title2.weight(.medium)) + Text(" ago").font(.title2.weight(.medium))
+                                TimelineView(.periodic(from: .now, by: 60)) { context in
+                                    Text("Last feed · \(elapsedSince(last.startDate, at: context.date))")
+                                        .font(.title3.weight(.medium))
+                                        .lineLimit(1).minimumScaleFactor(0.8)
                                 }
                             } else { Text("No feeds logged yet").font(.title3) }
                         } }
@@ -71,6 +72,18 @@ struct TodayView: View {
                 .refreshable { await store.refreshProfile(); await store.sync() }
                 .sheet(item: $editing) { activity in ActivityEditor(kind: activity.kind, existing: activity) }
         }
+    }
+    private func elapsedSince(_ start: Date, at date: Date) -> String {
+        let minutes = max(0, Int(date.timeIntervalSince(start) / 60))
+        if minutes == 0 { return "just now" }
+        if minutes < 60 { return "\(minutes) min ago" }
+        let hours = minutes / 60
+        if hours < 24 {
+            let remainder = minutes % 60
+            return "\(hours) hr" + (remainder > 0 ? " \(remainder) min" : "") + " ago"
+        }
+        let days = hours / 24
+        return "\(days) \(days == 1 ? "day" : "days") ago"
     }
     private var actionColumns: [GridItem] {
         [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 300 : actionWidth), spacing: 12)]
