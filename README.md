@@ -24,7 +24,7 @@ npm run db:local
 npm run dev
 ```
 
-Open `ios/Pip.xcodeproj`, choose the **Pip** scheme and an iPhone simulator, and run. Debug simulator builds automatically use `http://127.0.0.1:8787`; physical devices and Release builds use `https://api.mypip.baby`. No environment variable is needed. Create an account and family in the app. Local auth, tracking, and sync are real, backed by local D1.
+Open `ios/Pip.xcodeproj`, choose the **Pip** scheme and an iPhone simulator, and run. Debug simulator builds automatically use `http://127.0.0.1:8787`; physical devices and Release builds use `https://api.mypip.baby`. No environment variable is needed. Create an account and family in the app. Local auth, tracking, and sync are real, backed by local D1. Keep `npm run dev` running while using the Debug simulator. The stable `preview_database_id` preserves the local database independently of the production D1 ID; do not change it when deploying.
 
 Invitations and password resets use Cloudflare Email Service from `noreply@mypip.baby`. Local development simulates delivery in Wrangler; it does not send real email. Password-reset responses avoid revealing account existence.
 
