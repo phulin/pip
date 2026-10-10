@@ -3,8 +3,8 @@
 ## Cloudflare
 
 1. Create/select your Cloudflare account. Enable Workers Paid for outbound transactional email to arbitrary recipients and sufficient CPU for password hashing. No account or paid plan is created by this repository.
-2. In `backend`, run `npx wrangler login` then `npx wrangler d1 create pip-db`.
-3. Replace the placeholder database UUID in `backend/wrangler.jsonc` with the returned ID. If multiple accounts are available, add your `account_id` explicitly.
+2. In `backend`, run `npx wrangler login`. The production account and `pip-db` database ID are configured in `wrangler.jsonc`.
+3. The Worker custom domain is `api.mypip.baby`. Wrangler manages its DNS and TLS certificate.
 4. Onboard your domain under **Email Service → Email Sending**. Wait for sender DNS verification.
 5. Add these top-level keys to `wrangler.jsonc`, using your real verified domain:
 
@@ -18,7 +18,7 @@
 
 
 6. Run `npm ci`, `npm run typecheck`, and `npm test`.
-7. Run `npm run db:remote` and then `npm run deploy`. Wrangler prints the public HTTPS `workers.dev` endpoint. A custom API domain is optional.
+7. Run `npm run db:remote` and then `npm run deploy`. Wrangler deploys to `https://api.mypip.baby`; the `workers.dev` endpoint is disabled.
 8. Request `/health` and verify it returns `{ "status": "ok", "service": "pip" }`. Then test signup, login, invitation delivery/acceptance, password reset, and two-device synchronization with test accounts. Rate limiting is 10 auth requests per IP per minute, plus per-email login limits and per-user invitation/join limits.
 
 Do not put Cloudflare API tokens, session tokens, or email credentials in the iOS app. Workers uses D1 and Email Service bindings; no email API secret is needed. The scheduled handler removes expired sessions, invites, and reset tokens daily.
@@ -28,7 +28,7 @@ Cloudflare references: [D1 setup](https://developers.cloudflare.com/d1/get-start
 ## Apple / iOS
 
 1. Set your Apple development team in `ios/project.yml` (`DEVELOPMENT_TEAM`). Replace `app.pip.baby` and `app.pip.baby.widgets` with your registered, unique bundle IDs.
-2. Set `PIP_API_URL` to the deployed **HTTPS** API URL. The checked-in loopback default is for the simulator only.
+2. API selection is automatic: **Debug simulator** builds use `http://127.0.0.1:8787`; **physical devices and all Release builds** use `https://api.mypip.baby`. No environment variable or build setting is needed. Local and production Keychain sessions and offline caches are separate. A stopped local server produces a connection error rather than silently switching to production.
 3. Run `xcodegen generate --spec ios/project.yml`. Open the project and confirm signing for both Pip and PipWidgets.
 4. Run on a physical iPhone. Start a feed, lock the phone, tap switch and pause/resume, unlock, and verify side totals, paused intervals, local persistence, and cloud records. Also test airplane mode and relaunch.
 5. Test a second caregiver on a second device. Foreground updates should appear within roughly eight seconds; background devices refresh on resume. There are no APNs pushes in this version.

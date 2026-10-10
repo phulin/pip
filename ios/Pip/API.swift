@@ -7,7 +7,14 @@ struct APIError: LocalizedError {
 }
 struct API {
     private struct Failure: Decodable { var error: String; var current: CareActivity? }
-    static var baseURL: URL { URL(string: Bundle.main.object(forInfoDictionaryKey: "PipAPIURL") as? String ?? "http://127.0.0.1:8787")! }
+    // Simulator development stays local; devices and all Release builds use production.
+    // Never fall back between servers: their accounts and offline edits are independent.
+    #if DEBUG && targetEnvironment(simulator)
+    static let isLocal = true
+    #else
+    static let isLocal = false
+    #endif
+    static let baseURL = URL(string: isLocal ? "http://127.0.0.1:8787" : "https://api.mypip.baby")!
     static func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil, token: String? = nil) async throws -> T {
         var request = URLRequest(url: URL(string: path, relativeTo: baseURL.appendingPathComponent("/"))!)
         request.httpMethod = method; request.httpBody = body; request.timeoutInterval = 15
@@ -24,7 +31,7 @@ struct API {
     static func data(_ object: [String: String]) throws -> Data { try JSONEncoder().encode(object) }
 }
 enum Keychain {
-    static let service = "app.pip.baby.session"
+    static let service = API.isLocal ? "app.pip.baby.session" : "app.pip.baby.production.session"
     static func read() -> String? {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "session", kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var result: CFTypeRef?

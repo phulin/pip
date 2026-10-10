@@ -27,7 +27,7 @@ import Network
         var user: CareUser?; var family: Family?; var babies: [Baby]; var activities: [CareActivity]
         var selectedBabyId: String; var pending: Set<String>; var conflicts: [String: String]
     }
-    private var cacheURL: URL { URL.applicationSupportDirectory.appendingPathComponent("pip-cache.json") }
+    private var cacheURL: URL { URL.applicationSupportDirectory.appendingPathComponent(API.isLocal ? "pip-cache.json" : "pip-production-cache.json") }
     init() {
         token = Keychain.read()
         if let data = try? Data(contentsOf: cacheURL), let cache = try? JSONDecoder().decode(Cache.self, from: data) {

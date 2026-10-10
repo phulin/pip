@@ -38,8 +38,6 @@
 	<string>Connect to the Pip development server on your Mac for local testing.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
-	<key>PipAPIURL</key>
-	<string>$(PIP_API_URL)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -10,7 +10,6 @@ settings:
     DEVELOPMENT_TEAM: ''
     MARKETING_VERSION: '1.0.0'
     CURRENT_PROJECT_VERSION: '1'
-    PIP_API_URL: 'http://127.0.0.1:8787'
 targets:
   Pip:
     type: application
@@ -27,7 +26,6 @@ targets:
         CFBundleDisplayName: Pip
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
-        PipAPIURL: $(PIP_API_URL)
         NSLocalNetworkUsageDescription: Connect to the Pip development server on your Mac for local testing.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

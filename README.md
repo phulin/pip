@@ -24,7 +24,7 @@ npm run db:local
 npm run dev
 ```
 
-Open `ios/Pip.xcodeproj`, choose the **Pip** scheme and an iPhone simulator, and run. The default API endpoint is `http://127.0.0.1:8787`. Create an account and family in the app. Local auth, tracking, and sync are real, backed by local D1.
+Open `ios/Pip.xcodeproj`, choose the **Pip** scheme and an iPhone simulator, and run. Debug simulator builds automatically use `http://127.0.0.1:8787`; physical devices and Release builds use `https://api.mypip.baby`. No environment variable is needed. Create an account and family in the app. Local auth, tracking, and sync are real, backed by local D1.
 
 Email delivery deliberately returns an explicit configuration error until the Cloudflare Email Service binding and sender domain are configured. There is no pretend “email sent” fallback for invitations. Password-reset responses avoid revealing account existence.
 
@@ -55,9 +55,9 @@ xcodebuild -project ios/Pip.xcodeproj -scheme Pip \
 
 Backend tests run in the actual local Workers runtime with D1 migrations. They cover session revocation, family isolation, invite restrictions, optimistic concurrency, idempotent retries, active-feed uniqueness, validation, password resets, and deletion.
 
-## Deploy later
+## Production deployment
 
-See [deployment instructions](docs/DEPLOYMENT.md). **No public backend has been deployed, and no Apple signing team is configured.** Account setup was deferred by the project owner. The default configuration is local development only.
+The production API is configured at `https://api.mypip.baby` using Cloudflare Workers and D1. See [deployment instructions](docs/DEPLOYMENT.md) for updates and email sender setup. Local and production sessions and offline data are stored separately.
 
 ## Important scope details
 
