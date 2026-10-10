@@ -9,33 +9,35 @@ struct TodayView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            TimelineView(.periodic(from: .now, by: 60)) { context in
-                                Text(dateAndAge(at: context.date))
-                                    .font(.body.weight(.medium)).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                TimelineView(.periodic(from: .now, by: 60)) { context in
+                                    Text(dateAndAge(at: context.date))
+                                        .font(.body.weight(.medium)).foregroundStyle(.secondary)
+                                }
+                                Text("\(store.baby?.name ?? "Baby")’s day").font(.largeTitle.bold())
                             }
-                            Text("\(store.baby?.name ?? "Baby")’s day").font(.largeTitle.bold())
+                            Spacer()
+                            Menu {
+                                ForEach(store.babies) { baby in Button(baby.name) { store.selectedBabyId = baby.id; store.persist() } }
+                            } label: { Image(systemName: "leaf.fill").font(.title2).padding(14).background(PipTheme.green.opacity(0.10), in: Circle()) }.accessibilityLabel("Choose baby")
                         }
-                        Spacer()
-                        Menu {
-                            ForEach(store.babies) { baby in Button(baby.name) { store.selectedBabyId = baby.id; store.persist() } }
-                        } label: { Image(systemName: "leaf.fill").font(.title2).padding(14).background(PipTheme.green.opacity(0.10), in: Circle()) }.accessibilityLabel("Choose baby")
+                        if !store.visibleActivities.contains(where: { $0.isRunning }) {
+                            Group {
+                                if let last = store.visibleActivities.first(where: { $0.kind != .pump && $0.endedAt != nil }) {
+                                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                                        Text("Last feed · \(elapsedSince(last.startDate, at: context.date))")
+                                            .font(.title3.weight(.medium))
+                                            .lineLimit(1).minimumScaleFactor(0.8)
+                                    }
+                                } else { Text("No feeds logged yet").font(.title3) }
+                            }.foregroundStyle(.secondary)
+                        }
                     }
                     SyncStatusView()
                     ForEach(store.visibleActivities.filter { $0.isRunning }) { activity in
                         FeedCard(activity: activity)
-                    }
-                    if !store.visibleActivities.contains(where: { $0.isRunning }) {
-                        Group {
-                            if let last = store.visibleActivities.first(where: { $0.kind != .pump && $0.endedAt != nil }) {
-                                TimelineView(.periodic(from: .now, by: 60)) { context in
-                                    Text("Last feed · \(elapsedSince(last.startDate, at: context.date))")
-                                        .font(.title3.weight(.medium))
-                                        .lineLimit(1).minimumScaleFactor(0.8)
-                                }
-                            } else { Text("No feeds logged yet").font(.title3) }
-                        }.foregroundStyle(.secondary)
                     }
                     VStack(spacing: 12) {
                         if store.active == nil {
