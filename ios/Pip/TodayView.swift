@@ -35,7 +35,6 @@ struct TodayView: View {
                             }.foregroundStyle(.secondary)
                         }
                     }
-                    SyncStatusView()
                     ForEach(store.visibleActivities.filter { $0.isRunning }) { activity in
                         FeedCard(activity: activity)
                     }
@@ -69,6 +68,7 @@ struct TodayView: View {
                             Button { editing = activity } label: { ActivityTimelineRow(activity: activity) }.buttonStyle(.plain)
                         } }
                     }
+                    SyncStatusView()
                 }.padding(22)
             }.background(PipTheme.background).toolbar(.hidden, for: .navigationBar)
                 .refreshable { await store.refreshProfile(); await store.sync() }
@@ -179,7 +179,13 @@ struct FeedCard: View {
                     }
                 }
                 (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))) {
-                    if activity.kind == .breast { Button { control(.switchSide) } label: { Text("Switch to \(activity.side.other.rawValue)").frame(maxWidth: .infinity, minHeight: 56) } }
+                    if activity.kind == .breast {
+                        Button { control(.switchSide) } label: {
+                            Text(activity.side == .left ? "L → R" : "R → L")
+                                .monospaced().lineLimit(1)
+                                .frame(maxWidth: .infinity, minHeight: 56)
+                        }.accessibilityLabel("Switch to \(activity.side.other.rawValue) breast")
+                    }
                     Button { control(.pause) } label: { Label(activity.paused ? "Resume" : "Pause", systemImage: activity.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity, minHeight: 56) }
                 }.font(.title3.weight(.semibold)).buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 16))
                 Button { control(.finish) } label: { Text(activity.kind == .pump ? "Finish pumping" : activity.kind == .bottle ? "Finish bottle" : "Finish feed").font(.title3.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 52) }.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle(radius: 16))
