@@ -203,7 +203,7 @@ const activitySchema = z.object({
   side: z.enum(['left','right']), leftSeconds: z.number().min(0).max(604800), rightSeconds: z.number().min(0).max(604800),
   segmentStartedAt: z.number().nullable().default(null), paused: z.boolean(), volumeML: z.number().min(0).max(5000),
   milk: z.enum(['breastMilk','formula']), notes: z.string().max(2000), deleted: z.boolean(),
-  revision: z.number().int().min(0), mutationId: id, controlAt: z.number().nonnegative().nullable().optional()
+  revision: z.number().int().min(0), mutationId: id, controlAt: z.number().nonnegative().nullable().optional(), sideChangedAt: z.number().nonnegative().nullable().optional(), pauseChangedAt: z.number().nonnegative().nullable().optional(), volumeChangedAt: z.number().nonnegative().nullable().optional()
 }).superRefine((a, ctx) => {
   if (a.startedAt > now() + 300000 || (a.endedAt !== null && (a.endedAt < a.startedAt || a.endedAt > now() + 300000))) ctx.addIssue({ code: 'custom', message: 'Invalid activity times' });
   if (a.segmentStartedAt !== null && (a.segmentStartedAt < a.startedAt || a.segmentStartedAt > now() + 300000)) ctx.addIssue({ code: 'custom', message: 'Invalid timer segment' });
@@ -222,44 +222,44 @@ app.put('/v1/family/activities/:id', async c => {
   const input = await c.req.json();
   const original = activitySchema.parse(input);
   for (let attempt = 0; attempt < 12; attempt++) {
-  let a = { ...original };
-  if (a.id !== c.req.param('id')) fail(400, 'Activity ID mismatch');
-  const db = c.env.DB;
-  if (!(await db.prepare('SELECT 1 FROM babies WHERE id = ? AND family_id = ?').bind(a.babyId, c.get('familyId')).first())) fail(404, 'Baby not found');
-  const existing = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE id = ? AND family_id = ?').bind(a.id, c.get('familyId')).first<ActivityRow>();
-  if (existing?.mutation_id === a.mutationId) return c.json(decode(existing));
-  if (existing && existing.revision !== a.revision) {
-    const current = decode(existing);
-    const base = input.base ? activitySchema.parse(input.base) : null;
-    if (!base || base.id !== a.id) return c.json({ error: 'Another caregiver updated this activity.', current }, 409);
-    // Merge independent edits, keeping timer state as one indivisible group.
-    const groups = [['startedAt', 'endedAt', 'side', 'leftSeconds', 'rightSeconds', 'segmentStartedAt', 'paused', 'deleted', 'controlAt'], ['notes'], ['volumeML'], ['milk']];
-    const merged = { ...current, mutationId: a.mutationId };
-    for (const fields of groups) {
-      const localChanged = fields.some(k => (a as any)[k] !== (base as any)[k]);
-      const remoteChanged = fields.some(k => current[k] !== (base as any)[k]);
-      if (localChanged && remoteChanged && fields.some(k => (a as any)[k] !== current[k])) return c.json({ error: 'Both caregivers changed the same detail.', current }, 409);
-      if (localChanged) for (const k of fields) merged[k] = (a as any)[k];
+    let a = { ...original };
+    if (a.id !== c.req.param('id')) fail(400, 'Activity ID mismatch');
+    const db = c.env.DB;
+    if (!(await db.prepare('SELECT 1 FROM babies WHERE id = ? AND family_id = ?').bind(a.babyId, c.get('familyId')).first())) fail(404, 'Baby not found');
+    const existing = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE id = ? AND family_id = ?').bind(a.id, c.get('familyId')).first<ActivityRow>();
+    if (existing?.mutation_id === a.mutationId) return c.json(decode(existing));
+    if (existing && existing.revision !== a.revision) {
+      const current = decode(existing);
+      const base = input.base ? activitySchema.parse(input.base) : null;
+      if (!base || base.id !== a.id) return c.json({ error: 'Another caregiver updated this activity.', current }, 409);
+      // Merge independent edits, keeping timer state as one indivisible group.
+      const groups = [['startedAt', 'endedAt', 'side', 'leftSeconds', 'rightSeconds', 'segmentStartedAt', 'paused', 'deleted', 'controlAt', 'sideChangedAt', 'pauseChangedAt'], ['notes'], ['volumeML', 'volumeChangedAt'], ['milk']];
+      const merged = { ...current, mutationId: a.mutationId };
+      for (const fields of groups) {
+        const localChanged = fields.some(k => (a as any)[k] !== (base as any)[k]);
+        const remoteChanged = fields.some(k => current[k] !== (base as any)[k]);
+        if (localChanged && remoteChanged && fields.some(k => (a as any)[k] !== current[k])) return c.json({ error: 'Both caregivers changed the same detail.', current }, 409);
+        if (localChanged) for (const k of fields) merged[k] = (a as any)[k];
+      }
+      a = activitySchema.parse(merged);
     }
-    a = activitySchema.parse(merged);
-  }
-  if (!existing && a.revision !== 0) fail(409, 'Activity no longer exists.');
-  let changes = 0;
-  try {
-    const result = existing
-      ? await db.prepare('UPDATE activities SET ended_at = ?, started_at = ?, payload = ?, revision = revision + 1, mutation_id = ?, deleted = ?, updated_at = ? WHERE id = ? AND family_id = ? AND revision = ? AND baby_id = ? AND kind = ?').bind(a.endedAt, a.startedAt, JSON.stringify(a), a.mutationId, Number(a.deleted), now(), a.id, c.get('familyId'), a.revision, a.babyId, a.kind).run()
-      : await db.prepare('INSERT INTO activities VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)').bind(a.id, c.get('familyId'), a.babyId, c.get('user').id, a.kind, a.startedAt, a.endedAt, JSON.stringify(a), a.mutationId, Number(a.deleted), now()).run();
-    changes = result.meta.changes;
-  } catch (e) {
-    if (String(e).includes('UNIQUE constraint')) {
-      const running = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE baby_id = ? AND kind = ? AND ended_at IS NULL AND deleted = 0 AND family_id = ?').bind(a.babyId, a.kind, c.get('familyId')).first<ActivityRow>();
-      return c.json({ error: 'An activity is already running.', current: running ? decode(running) : undefined }, 409);
+    if (!existing && a.revision !== 0) fail(409, 'Activity no longer exists.');
+    let changes = 0;
+    try {
+      const result = existing
+        ? await db.prepare('UPDATE activities SET ended_at = ?, started_at = ?, payload = ?, revision = revision + 1, mutation_id = ?, deleted = ?, updated_at = ? WHERE id = ? AND family_id = ? AND revision = ? AND baby_id = ? AND kind = ?').bind(a.endedAt, a.startedAt, JSON.stringify(a), a.mutationId, Number(a.deleted), now(), a.id, c.get('familyId'), a.revision, a.babyId, a.kind).run()
+        : await db.prepare('INSERT INTO activities VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)').bind(a.id, c.get('familyId'), a.babyId, c.get('user').id, a.kind, a.startedAt, a.endedAt, JSON.stringify(a), a.mutationId, Number(a.deleted), now()).run();
+      changes = result.meta.changes;
+    } catch (e) {
+      if (String(e).includes('UNIQUE constraint')) {
+        const running = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE baby_id = ? AND kind = ? AND ended_at IS NULL AND deleted = 0 AND family_id = ?').bind(a.babyId, a.kind, c.get('familyId')).first<ActivityRow>();
+        return c.json({ error: 'An activity is already running.', current: running ? decode(running) : undefined }, 409);
+      }
+      throw e;
     }
-    throw e;
-  }
-  if (!changes) continue;
-  c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), a.id));
-  return c.json({ ...a, revision: a.revision + 1, createdBy: existing?.created_by || c.get('user').id });
+    if (!changes) continue;
+    c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), a.id));
+    return c.json({ ...a, revision: a.revision + 1, createdBy: existing?.created_by || c.get('user').id });
   }
   return fail(409, 'Activity is busy. Please retry.');
 });
@@ -278,17 +278,18 @@ app.post('/v1/family/activities/:id/commands', async c => {
     }
     // Finished/deleted activities never reopen because an offline control arrives late.
     if (a.endedAt == null && !a.deleted) {
-      const time = Math.max(a.segmentStartedAt ?? a.startedAt, Math.min(now(), command.occurredAt));
-      const timerChanged = command.finish || (command.side !== undefined && command.side !== a.side) || (command.paused !== undefined && command.paused !== a.paused);
-      if (timerChanged && command.occurredAt >= (a.controlAt ?? a.startedAt)) {
+      const time = Math.max(a.segmentStartedAt ?? a.startedAt, a.controlAt ?? a.startedAt, Math.min(now(), command.occurredAt));
+      const changeSide = a.kind === 'breast' && command.side !== undefined && command.side !== a.side && command.occurredAt >= (a.sideChangedAt ?? a.startedAt);
+      const changePause = command.paused !== undefined && command.paused !== a.paused && command.occurredAt >= (a.pauseChangedAt ?? a.startedAt);
+      if (command.finish || changeSide || changePause) {
         a.controlAt = time;
         if (!a.paused && a.segmentStartedAt != null) a[a.side === 'left' ? 'leftSeconds' : 'rightSeconds'] += Math.max(0, (time - a.segmentStartedAt) / 1000);
-        if (command.side !== undefined && a.kind === 'breast') a.side = command.side;
-        if (command.paused !== undefined) a.paused = command.paused;
+        if (changeSide) { a.side = command.side; a.sideChangedAt = Math.min(now(), command.occurredAt); }
+        if (changePause) { a.paused = command.paused; a.pauseChangedAt = Math.min(now(), command.occurredAt); }
         if (command.finish) { a.endedAt = time; a.paused = true; }
         a.segmentStartedAt = a.paused ? null : time;
       }
-      if (command.volumeML !== undefined) a.volumeML = command.volumeML;
+      if (command.volumeML !== undefined && command.occurredAt >= (a.volumeChangedAt ?? a.startedAt)) { a.volumeML = command.volumeML; a.volumeChangedAt = Math.min(now(), command.occurredAt); }
     }
     a.mutationId = command.id;
     const [update] = await c.env.DB.batch([

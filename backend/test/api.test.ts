@@ -202,4 +202,18 @@ describe('Pip API', () => {
     expect(await env.DB.prepare('SELECT 1 FROM live_tokens WHERE device_id = ?').bind(device).first()).toBeNull();
   });
 
+  it('merges out-of-order switch and pause commands but ignores older edits to the same control', async () => {
+    const a = await family(), log = activity(a.babyId), path = `/v1/family/activities/${log.id}`;
+    await request(path, 'PUT', log, a.token);
+    const now = Date.now();
+    const control = (fields: any, time: number) => request(path + '/commands', 'POST', { id: crypto.randomUUID(), occurredAt: time, ...fields }, a.token);
+    await control({ side: 'right' }, now - 1000);
+    const paused = await control({ paused: true }, now - 3000);
+    expect(paused.data.side).toBe('right'); expect(paused.data.paused).toBe(true);
+    const stale = await control({ side: 'left', paused: false }, now - 4000);
+    expect(stale.data.side).toBe('right'); expect(stale.data.paused).toBe(true);
+    const resumed = await control({ paused: false }, now);
+    expect(resumed.data.paused).toBe(false); expect(resumed.data.side).toBe('right');
+  });
+
 });
