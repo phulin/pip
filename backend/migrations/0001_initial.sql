@@ -1,0 +1,14 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
+CREATE INDEX sessions_user ON sessions(user_id);
+CREATE TABLE families (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE members (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE, role TEXT NOT NULL CHECK(role IN ('owner','member')));
+CREATE INDEX members_family ON members(family_id);
+CREATE TABLE invites (code_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL, email TEXT NOT NULL);
+CREATE TABLE password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
+CREATE TABLE babies (id TEXT PRIMARY KEY, family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE, name TEXT NOT NULL, birthday TEXT NOT NULL);
+CREATE INDEX babies_family ON babies(family_id);
+CREATE TABLE activities (id TEXT PRIMARY KEY, family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE, baby_id TEXT NOT NULL REFERENCES babies(id) ON DELETE CASCADE, created_by TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('breast','bottle','pump')), started_at REAL NOT NULL, ended_at REAL, payload TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, mutation_id TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL);
+CREATE INDEX activities_family ON activities(family_id, started_at DESC);
+CREATE UNIQUE INDEX one_active_feed ON activities(baby_id) WHERE kind = 'breast' AND ended_at IS NULL AND deleted = 0;

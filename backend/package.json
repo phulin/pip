@@ -1,0 +1,26 @@
+{
+  "name": "pip-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:local": "wrangler d1 migrations apply pip-db --local",
+    "db:remote": "wrangler d1 migrations apply pip-db --remote"
+  },
+  "dependencies": {
+    "hono": "^4.10.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "@cloudflare/vitest-pool-workers": "latest",
+    "@types/node": "latest",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0",
+    "wrangler": "latest"
+  }
+}
