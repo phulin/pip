@@ -63,9 +63,8 @@ struct TodayView: View {
                         Card { VStack(spacing: 12) { Image(systemName: "sun.horizon").font(.largeTitle).foregroundStyle(PipTheme.peach); Text("No activities today").font(.title3.weight(.semibold)); Text("Your feeds and pumping sessions will appear here.").font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center) }.frame(maxWidth: .infinity).padding(.vertical, 14) }
                     } else {
                         VStack(spacing: 0) { ForEach(store.today) { activity in
-                            Button { editing = activity } label: { ActivityRow(activity: activity) }.buttonStyle(.plain)
-                            if activity.id != store.today.last?.id { Divider().padding(.leading, 70) }
-                        } }.padding(.horizontal, 16).background(PipTheme.card, in: RoundedRectangle(cornerRadius: 24))
+                            Button { editing = activity } label: { ActivityTimelineRow(activity: activity) }.buttonStyle(.plain)
+                        } }
                     }
                 }.padding(22)
             }.background(PipTheme.background).toolbar(.hidden, for: .navigationBar)
@@ -180,6 +179,36 @@ struct FeedCard: View {
     }
     func control(_ action: PipStore.FeedAction) { UIImpactFeedbackGenerator(style: .soft).impactOccurred(); Task { await store.controlFeed(id: activity.id, action: action) } }
 }
+struct ActivityTimelineRow: View {
+    let activity: CareActivity
+    @ScaledMetric(relativeTo: .title3) private var timeWidth = 100.0
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                Text(activity.startDate, format: .dateTime.hour().minute())
+                    .monospacedDigit().foregroundStyle(.secondary)
+                    .frame(width: timeWidth, alignment: .leading)
+                Text(description(at: context.date))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .font(.title3)
+            .padding(.vertical, 12)
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func description(at date: Date) -> String {
+        switch activity.kind {
+        case .breast: return "Breastfeed \(Int(activity.total(at: date) / 60)) min"
+        case .pump: return "Pump \(Int(activity.volumeML)) mL"
+        case .bottle: return "Bottle \(Int(activity.volumeML)) mL"
+        }
+    }
+}
+
 struct ActivityRow: View {
     @Environment(PipStore.self) var store
     let activity: CareActivity
