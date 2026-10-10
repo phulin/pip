@@ -27,7 +27,7 @@ struct TodayView: View {
                         FeedCard(activity: activity)
                     }
                     if !store.visibleActivities.contains(where: { $0.isRunning }) {
-                        Card { VStack(alignment: .leading, spacing: 20) {
+                        Group {
                             if let last = store.visibleActivities.first(where: { $0.kind != .pump && $0.endedAt != nil }) {
                                 TimelineView(.periodic(from: .now, by: 60)) { context in
                                     Text("Last feed · \(elapsedSince(last.startDate, at: context.date))")
@@ -35,7 +35,7 @@ struct TodayView: View {
                                         .lineLimit(1).minimumScaleFactor(0.8)
                                 }
                             } else { Text("No feeds logged yet").font(.title3) }
-                        } }
+                        }.foregroundStyle(.secondary)
                     }
                     VStack(spacing: 12) {
                         if store.active == nil {
