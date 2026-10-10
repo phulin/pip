@@ -16,8 +16,8 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.0",
     "@cloudflare/workers-types": "latest",
-    "@cloudflare/vitest-pool-workers": "latest",
     "@types/node": "latest",
     "typescript": "^5.9.0",
     "vitest": "^4.1.0",

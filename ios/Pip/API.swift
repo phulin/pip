@@ -6,6 +6,7 @@ struct APIError: LocalizedError {
     var errorDescription: String? { message }
 }
 struct API {
+    private struct Failure: Decodable { var error: String; var current: CareActivity? }
     static var baseURL: URL { URL(string: Bundle.main.object(forInfoDictionaryKey: "PipAPIURL") as? String ?? "http://127.0.0.1:8787")! }
     static func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil, token: String? = nil) async throws -> T {
         var request = URLRequest(url: URL(string: path, relativeTo: baseURL.appendingPathComponent("/"))!)
@@ -15,7 +16,6 @@ struct API {
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 500
         guard (200..<300).contains(status) else {
-            struct Failure: Decodable { var error: String; var current: CareActivity? }
             let failure = try? JSONDecoder().decode(Failure.self, from: data)
             throw APIError(status: status, message: failure?.error ?? "Unable to connect. Please try again.", current: failure?.current)
         }
