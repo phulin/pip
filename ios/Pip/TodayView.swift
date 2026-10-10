@@ -36,17 +36,21 @@ struct TodayView: View {
                             } else { Text("No feeds logged yet").font(.title3) }
                         } }
                     }
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 300 : actionWidth), spacing: 12)], spacing: 12) {
+                    VStack(spacing: 12) {
                         if store.active == nil {
-                            quickAction("Feed Left", icon: "heart.fill", color: PipTheme.green) { store.startFeed(side: .left) }
-                            quickAction("Feed Right", icon: "heart.fill", color: PipTheme.green) { store.startFeed(side: .right) }
+                            LazyVGrid(columns: actionColumns, spacing: 12) {
+                                quickAction("Feed Left", icon: "heart.fill", color: PipTheme.green) { store.startFeed(side: .left) }
+                                quickAction("Feed Right", icon: "heart.fill", color: PipTheme.green) { store.startFeed(side: .right) }
+                            }
                         }
                         if !store.visibleActivities.contains(where: { $0.kind == .pump && $0.isRunning }) {
                             quickAction("Pump", icon: "drop.fill", color: PipTheme.green) { store.startTracking(kind: .pump) }
                         }
                         if !store.visibleActivities.contains(where: { $0.kind == .bottle && $0.isRunning }) {
-                            quickAction("Breastmilk", icon: "waterbottle.fill", color: PipTheme.peach) { store.startTracking(kind: .bottle) }
-                            quickAction("Formula", icon: "waterbottle.fill", color: PipTheme.peach) { store.startTracking(kind: .bottle, milk: "formula") }
+                            LazyVGrid(columns: actionColumns, spacing: 12) {
+                                quickAction("Breastmilk", icon: "waterbottle.fill", color: PipTheme.peach) { store.startTracking(kind: .bottle) }
+                                quickAction("Formula", icon: "waterbottle.fill", color: PipTheme.peach) { store.startTracking(kind: .bottle, milk: "formula") }
+                            }
                         }
                     }
                     (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 16)) : AnyLayout(HStackLayout(spacing: 12))) {
@@ -68,6 +72,9 @@ struct TodayView: View {
                 .refreshable { await store.refreshProfile(); await store.sync() }
                 .sheet(item: $editing) { activity in ActivityEditor(kind: activity.kind, existing: activity) }
         }
+    }
+    private var actionColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 300 : actionWidth), spacing: 12)]
     }
     private func dateAndAge(at date: Date) -> String {
         let heading = date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
