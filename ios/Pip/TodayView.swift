@@ -128,9 +128,9 @@ struct SyncStatusView: View {
     var body: some View {
         if !store.conflicts.isEmpty {
             NavigationLink { ConflictView() } label: { Label("\(store.conflicts.count) changes need review", systemImage: "exclamationmark.arrow.triangle.2.circlepath").font(.body).foregroundStyle(.orange) }
-        } else if !store.online || !store.pending.isEmpty || store.syncMessage != nil {
+        } else if !store.online || store.waitingChanges > 0 || store.syncMessage != nil {
             Button { Task { await store.sync() } } label: {
-                Label(!store.online ? "Offline · saved on this iPhone" : store.syncMessage != nil ? "Sync needs attention · tap to retry" : "\(store.pending.count) changes waiting to sync", systemImage: "icloud.and.arrow.up").font(.body).foregroundStyle(.secondary)
+                Label(!store.online ? "Offline · saved on this iPhone" : store.syncMessage != nil ? "Sync needs attention · tap to retry" : "\(store.waitingChanges) changes waiting to sync", systemImage: "icloud.and.arrow.up").font(.body).foregroundStyle(.secondary)
             }.accessibilityHint(store.syncMessage ?? "")
         }
     }

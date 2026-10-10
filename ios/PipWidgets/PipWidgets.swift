@@ -15,9 +15,9 @@ struct FeedLiveActivity: Widget {
                     timer(context.state).font(.system(size: 32, weight: .medium, design: .rounded)).monospacedDigit().frame(width: 130, alignment: .trailing)
                 }
                 HStack(spacing: 12) {
-                    Button(intent: SwitchBreastIntent(activityId: context.attributes.activityId)) { Text(switchTitle(context.state)).lineLimit(1).frame(maxWidth: .infinity) }
+                    Button(intent: SwitchBreastIntent(activityId: context.attributes.activityId, targetRight: context.state.side.lowercased() == "left")) { Text(switchTitle(context.state)).lineLimit(1).frame(maxWidth: .infinity) }
                         .accessibilityLabel(context.state.side.lowercased() == "left" ? "Switch to right breast" : "Switch to left breast")
-                    Button(intent: PauseFeedIntent(activityId: context.attributes.activityId)) { Label(context.state.paused ? "Resume" : "Pause", systemImage: context.state.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity) }
+                    Button(intent: PauseFeedIntent(activityId: context.attributes.activityId, targetPaused: !context.state.paused)) { Label(context.state.paused ? "Resume" : "Pause", systemImage: context.state.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity) }
                 }.font(.headline).buttonStyle(.bordered).controlSize(.large).tint(green)
             }.padding(18).activityBackgroundTint(Color(uiColor: .secondarySystemBackground)).activitySystemActionForegroundColor(green)
                 .widgetURL(URL(string: "pipbaby://feed"))
@@ -27,9 +27,9 @@ struct FeedLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) { timer(context.state).font(.title2.monospacedDigit()).frame(width: 95) }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
-                        Button(intent: SwitchBreastIntent(activityId: context.attributes.activityId)) { Text(switchTitle(context.state)).lineLimit(1).frame(maxWidth: .infinity) }
+                        Button(intent: SwitchBreastIntent(activityId: context.attributes.activityId, targetRight: context.state.side.lowercased() == "left")) { Text(switchTitle(context.state)).lineLimit(1).frame(maxWidth: .infinity) }
                         .accessibilityLabel(context.state.side.lowercased() == "left" ? "Switch to right breast" : "Switch to left breast")
-                        Button(intent: PauseFeedIntent(activityId: context.attributes.activityId)) { Label(context.state.paused ? "Resume" : "Pause", systemImage: context.state.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity) }
+                        Button(intent: PauseFeedIntent(activityId: context.attributes.activityId, targetPaused: !context.state.paused)) { Label(context.state.paused ? "Resume" : "Pause", systemImage: context.state.paused ? "play.fill" : "pause.fill").frame(maxWidth: .infinity) }
                     }.buttonStyle(.bordered).tint(.mint)
                 }
             } compactLeading: { Image(systemName: context.state.paused ? "pause.fill" : "heart.fill").foregroundStyle(.mint) }

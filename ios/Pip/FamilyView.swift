@@ -50,8 +50,8 @@ struct FamilyView: View {
                 Section {
                     Button("Account & privacy", systemImage: "person.crop.circle") { account = true }
                     ShareLink(item: CSVExport(text: exportCSV()), preview: SharePreview("Pip activity export")) { Label("Export activities (CSV)", systemImage: "square.and.arrow.up") }
-                    Button("Sign out", role: .destructive) { signOut = true }.disabled(!store.pending.isEmpty || store.syncing)
-                    if !store.pending.isEmpty { Text("Sync or resolve pending changes before signing out.").font(.body).foregroundStyle(.secondary) }
+                    Button("Sign out", role: .destructive) { signOut = true }.disabled(store.waitingChanges > 0 || store.syncing)
+                    if store.waitingChanges > 0 { Text("Sync or resolve pending changes before signing out.").font(.body).foregroundStyle(.secondary) }
                 }
                 Section { Text("Pip keeps a protected copy on this iPhone so tracking works offline. Your family’s data syncs to Cloudflare when you reconnect.").font(.body).foregroundStyle(.secondary) }
             }.navigationTitle("Family")

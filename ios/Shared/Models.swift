@@ -31,6 +31,10 @@ struct CareActivity: Codable, Identifiable, Equatable {
     var revision = 0
     var mutationId = UUID().uuidString.lowercased()
     var createdBy: String?
+    var controlAt: Double?
+    var sideChangedAt: Double?
+    var pauseChangedAt: Double?
+    var volumeChangedAt: Double?
     var isRunning: Bool { endedAt == nil && !deleted }
     var startDate: Date { Date(timeIntervalSince1970: startedAt / 1000) }
     func seconds(_ side: BreastSide, at date: Date = .now) -> Double {
@@ -68,4 +72,30 @@ struct FeedAttributes: ActivityAttributes {
     }
     var activityId: String
     var babyName: String
+}
+
+struct ActivityCommand: Codable, Identifiable {
+    var id = UUID().uuidString.lowercased()
+    var activityId: String
+    var occurredAt = Date().timeIntervalSince1970 * 1000
+    var side: BreastSide?
+    var paused: Bool?
+    var finish: Bool?
+    var volumeML: Double?
+    func applying(to original: CareActivity) -> CareActivity {
+        var a = original
+        guard a.isRunning else { return a }
+        let time = max(a.segmentStartedAt ?? a.startedAt, a.controlAt ?? a.startedAt, occurredAt)
+        let date = Date(timeIntervalSince1970: time / 1000)
+        let changeSide = a.kind == .breast && side != nil && side != a.side && occurredAt >= (a.sideChangedAt ?? a.startedAt)
+        let changePause = paused != nil && paused != a.paused && occurredAt >= (a.pauseChangedAt ?? a.startedAt)
+        if changeSide || changePause || finish == true {
+            if changeSide { a.switchSide(at: date); a.sideChangedAt = occurredAt }
+            if changePause { a.togglePause(at: date); a.pauseChangedAt = occurredAt }
+            if finish == true { a.finish(at: date) }
+            a.controlAt = time
+        }
+        if let volumeML, occurredAt >= (a.volumeChangedAt ?? a.startedAt) { a.volumeML = volumeML; a.volumeChangedAt = occurredAt }
+        return a
+    }
 }

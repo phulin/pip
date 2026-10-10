@@ -194,7 +194,8 @@ describe('Pip API', () => {
     const registration = { token: 'a'.repeat(64), environment: 'sandbox' };
     expect((await request(`/v1/family/devices/${device}`, 'PUT', registration, a.token)).status).toBe(200);
     expect((await request(`/v1/family/devices/${device}`, 'PUT', registration, other.token)).status).toBe(403);
-    const log = activity(a.babyId); await request(`/v1/family/activities/${log.id}`, 'PUT', log, a.token);
+    const log = activity(a.babyId); await request(`/v1/family/activities/${log.id}`, 'PUT', { ...log, liveDeviceId: device }, a.token);
+    expect(await env.DB.prepare('SELECT 1 FROM live_starts WHERE device_id = ? AND activity_id = ?').bind(device, log.id).first()).not.toBeNull();
     expect((await request(`/v1/family/devices/${device}/activities/${log.id}`, 'PUT', { token: 'b'.repeat(64) }, other.token)).status).toBe(404);
     expect((await request(`/v1/family/devices/${device}/activities/${log.id}`, 'PUT', { token: 'b'.repeat(64) }, a.token)).status).toBe(200);
     await request('/v1/logout', 'POST', undefined, a.token);

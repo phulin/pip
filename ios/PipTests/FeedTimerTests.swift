@@ -52,4 +52,33 @@ final class FeedTimerTests: XCTestCase {
     func testBackwardClockDoesNotCreateNegativeDuration() {
         XCTAssertEqual(runningFeed().total(at: start.addingTimeInterval(-100)), 0)
     }
+    func testTargetCommandsDoNotDoubleToggleAndSurvivePersistence() throws {
+        let command = ActivityCommand(activityId: "feed", occurredAt: start.addingTimeInterval(30).timeIntervalSince1970 * 1000, side: .right)
+        let restored = try JSONDecoder().decode(ActivityCommand.self, from: JSONEncoder().encode(command))
+        let once = restored.applying(to: runningFeed())
+        let twice = restored.applying(to: once)
+        XCTAssertEqual(once, twice)
+        XCTAssertEqual(twice.side, .right)
+        XCTAssertEqual(twice.leftSeconds, 30)
+        let pause = ActivityCommand(activityId: "feed", occurredAt: start.addingTimeInterval(60).timeIntervalSince1970 * 1000, paused: true)
+        let paused = pause.applying(to: twice)
+        XCTAssertEqual(pause.applying(to: paused), paused)
+        XCTAssertEqual(paused.total(at: start.addingTimeInterval(100)), 60)
+    }
+    func testLateOfflineCommandsNeverReopenFinishedFeed() {
+        var a = runningFeed(); a.finish(at: start.addingTimeInterval(60))
+        let resume = ActivityCommand(activityId: a.id, paused: false)
+        XCTAssertEqual(resume.applying(to: a), a)
+    }
+
+    func testIndependentControlsMergeWhenTheyArriveOutOfOrder() {
+        let side = ActivityCommand(activityId: "feed", occurredAt: 1040000, side: .right)
+        let pause = ActivityCommand(activityId: "feed", occurredAt: 1030000, paused: true)
+        let a = pause.applying(to: side.applying(to: runningFeed()))
+        XCTAssertEqual(a.side, .right); XCTAssertTrue(a.paused)
+        let stale = ActivityCommand(activityId: "feed", occurredAt: 1020000, side: .left, paused: false)
+        XCTAssertEqual(stale.applying(to: a), a)
+        XCTAssertEqual(a.total(at: start.addingTimeInterval(100)), 40)
+    }
+
 }

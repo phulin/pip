@@ -151,7 +151,7 @@ app.put('/v1/family/devices/:id', async c => {
     await c.env.DB.prepare('INSERT OR IGNORE INTO live_starts SELECT ?, id FROM activities WHERE id = ? AND family_id = ?').bind(deviceId, activityId, c.get('familyId')).run();
   }
   const running = await c.env.DB.prepare("SELECT id FROM activities WHERE family_id = ? AND kind = 'breast' AND ended_at IS NULL AND deleted = 0").bind(c.get('familyId')).all<{id: string}>();
-  for (const a of running.results) c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), a.id));
+  for (const a of running.results) await changed(c.env, c.get('familyId'), a.id);
   return c.json({ ok: true, pushEnabled: pushEnabled(c.env) });
 });
 app.put('/v1/family/devices/:id/activities/:activityId', async c => {
@@ -160,7 +160,7 @@ app.put('/v1/family/devices/:id/activities/:activityId', async c => {
   const allowed = await c.env.DB.prepare('SELECT 1 FROM live_devices d JOIN activities a ON a.family_id = ? WHERE d.id = ? AND d.user_id = ? AND a.id = ?').bind(c.get('familyId'), deviceId, c.get('user').id, activityId).first();
   if (!allowed) fail(404, 'Device or activity not found.');
   await c.env.DB.prepare('INSERT INTO live_tokens VALUES (?, ?, ?) ON CONFLICT(device_id, activity_id) DO UPDATE SET token = excluded.token').bind(deviceId, activityId, data.token).run();
-  c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), activityId));
+  await changed(c.env, c.get('familyId'), activityId);
   return c.json({ ok: true });
 });
 app.get('/v1/family/members', async c => {
@@ -227,7 +227,11 @@ app.put('/v1/family/activities/:id', async c => {
     const db = c.env.DB;
     if (!(await db.prepare('SELECT 1 FROM babies WHERE id = ? AND family_id = ?').bind(a.babyId, c.get('familyId')).first())) fail(404, 'Baby not found');
     const existing = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE id = ? AND family_id = ?').bind(a.id, c.get('familyId')).first<ActivityRow>();
-    if (existing?.mutation_id === a.mutationId) return c.json(decode(existing));
+    if (existing?.mutation_id === a.mutationId) {
+      if (input.liveDeviceId && id.safeParse(input.liveDeviceId).success) await db.prepare('INSERT OR IGNORE INTO live_starts SELECT id, ? FROM live_devices WHERE id = ? AND user_id = ?').bind(a.id, input.liveDeviceId, c.get('user').id).run();
+      await changed(c.env, c.get('familyId'), a.id);
+      return c.json(decode(existing));
+    }
     if (existing && existing.revision !== a.revision) {
       const current = decode(existing);
       const base = input.base ? activitySchema.parse(input.base) : null;
@@ -258,7 +262,12 @@ app.put('/v1/family/activities/:id', async c => {
       throw e;
     }
     if (!changes) continue;
-    c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), a.id));
+    if (input.liveDeviceId && id.safeParse(input.liveDeviceId).success) {
+      // The initiating phone may already display a locally started Live Activity,
+      // including one created offline. Do not push a duplicate start to it.
+      await db.prepare('INSERT OR IGNORE INTO live_starts SELECT id, ? FROM live_devices WHERE id = ? AND user_id = ?').bind(a.id, input.liveDeviceId, c.get('user').id).run();
+    }
+    await changed(c.env, c.get('familyId'), a.id);
     return c.json({ ...a, revision: a.revision + 1, createdBy: existing?.created_by || c.get('user').id });
   }
   return fail(409, 'Activity is busy. Please retry.');
@@ -274,6 +283,7 @@ app.post('/v1/family/activities/:id/commands', async c => {
     const receipt = await c.env.DB.prepare('SELECT activity_id FROM activity_commands WHERE id = ?').bind(command.id).first<{activity_id: string}>();
     if (receipt) {
       if (receipt.activity_id !== activityId) fail(409, 'Command belongs to another activity.');
+      await changed(c.env, c.get('familyId'), activityId);
       return c.json(a);
     }
     // Finished/deleted activities never reopen because an offline control arrives late.
@@ -297,7 +307,7 @@ app.post('/v1/family/activities/:id/commands', async c => {
       c.env.DB.prepare('INSERT OR IGNORE INTO activity_commands SELECT ?, id, ? FROM activities WHERE id = ? AND mutation_id = ?').bind(command.id, now(), activityId, command.id)
     ]);
     if (update.meta.changes) {
-      c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), activityId));
+      await changed(c.env, c.get('familyId'), activityId);
       return c.json({ ...a, revision: row.revision + 1 });
     }
   }

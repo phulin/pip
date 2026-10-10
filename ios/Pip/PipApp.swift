@@ -8,6 +8,7 @@ import SwiftUI
             RootView().environment(store).tint(PipTheme.green).font(.title3).controlSize(.large)
                 .task { await store.start() }
                 .task(id: scenePhase) {
+                    store.setForeground(scenePhase == .active)
                     guard scenePhase == .active else { store.persist(); return }
                     await store.refreshProfile()
                     while !Task.isCancelled {

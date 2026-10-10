@@ -10,7 +10,7 @@ A native iPhone baby tracker built with SwiftUI, ActivityKit, and a Cloudflare W
 - Interactive Lock Screen and Dynamic Island Live Activities with switch-breast and pause/resume buttons.
 - Bottle feeds (breast milk or formula), pumping volume and duration, mL/US fl oz entry, past activity entry, notes, editing, and deletion.
 - Daily summary, searchable/filterable history, and CSV export.
-- Protected local cache, persistent offline mutation queue, immediate local controls, foreground sync every eight seconds, and explicit conflict resolution.
+- Protected local cache, persistent offline mutation queue, immediate local controls, immediate family updates over WebSockets, an eight-second fallback sync, and automatic merging of independent edits.
 - Light/dark appearance, native text scaling and accessibility labels, large controls, and a custom app icon.
 
 ## Run locally
@@ -62,9 +62,9 @@ The production API is configured at `https://api.mypip.baby` using Cloudflare Wo
 ## Important scope details
 
 - Live Activity buttons execute `LiveActivityIntent` in the app process and update local storage and ActivityKit immediately. They do not need an App Group. Real-device, signed-build verification is still required for lock-screen button dispatch and background execution.
-- Other caregivers’ updates appear during foreground polling and on resume. Server-to-APNs Live Activity pushes and background cross-device refresh are not implemented. Local Live Activity controls work independently of network availability.
+- Family-scoped Durable Objects notify open apps immediately. With APNs credentials configured, the Worker starts, updates, and ends breastfeeding Live Activities on each signed-in family device, including locked phones. iOS 17.2+ is required. Apple delivery and Live Activity permissions/lifecycle limits still apply; physical-device verification is required.
 - Sync currently fetches the family history in pages of 500 and merges by record ID. This is deliberately simple for family-sized data. Large histories should gain a server sequence/change-feed endpoint before scaling.
-- One active breastfeeding session per baby is enforced by a D1 unique index. If two offline devices start competing feeds, the second receives an explicit conflict; its local version is retained for review.
+- One active activity per baby and kind is enforced in D1. Concurrent starts join the existing timer. Timer controls are persisted, target-state commands: two caregivers pressing Pause cannot resume the timer. Retries are deduplicated, older timer commands cannot undo newer controls, and late commands cannot reopen finished activities. Disjoint history edits merge; competing edits to the same detail still require review.
 - A family has one owner. Owners can invite/remove caregivers. Members can leave by removing themselves. Ownership transfer and joining multiple families are not implemented.
 - There is no mandatory signup email-verification flow. Invitation acceptance requires both the addressed account and the secret sent in the email.
 - D1 and local OS file protection protect stored data; this is not end-to-end encryption. Configure production retention, privacy policy/support URLs, and App Store privacy disclosures before distribution.
