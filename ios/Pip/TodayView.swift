@@ -17,7 +17,10 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())).font(.body.weight(.medium)).foregroundStyle(.secondary)
+                            TimelineView(.periodic(from: .now, by: 60)) { context in
+                                Text(dateAndAge(at: context.date))
+                                    .font(.body.weight(.medium)).foregroundStyle(.secondary)
+                            }
                             Text("\(store.baby?.name ?? "Baby")’s day").font(.largeTitle.bold())
                         }
                         Spacer()
@@ -71,6 +74,20 @@ struct TodayView: View {
                 }
                 .sheet(item: $editing) { activity in ActivityEditor(kind: activity.kind, existing: activity) }
         }
+    }
+    private func dateAndAge(at date: Date) -> String {
+        let heading = date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+        guard let birthday = store.baby?.birthday else { return heading }
+        let calendar = Calendar(identifier: .gregorian)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let birthDate = formatter.date(from: birthday),
+              let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: birthDate), to: calendar.startOfDay(for: date)).day,
+              days >= 0 else { return heading }
+        return "\(heading) • \(days / 7)w \(days % 7)d"
     }
     func quickAction(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
