@@ -98,7 +98,8 @@ app.post('/v1/password', async c => {
   const password = await hashPassword(data.password);
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(password, c.get('user').id),
-    c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(c.get('user').id)
+    c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(c.get('user').id),
+    c.env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(c.get('user').id)
   ]);
   return c.json(await session(c.env.DB, c.get('user')));
 });
@@ -186,7 +187,10 @@ app.post('/v1/family/invites', async c => {
 app.delete('/v1/family/members/:id', async c => {
   const target = c.req.param('id');
   if (target !== c.get('user').id && c.get('role') !== 'owner') fail(403, 'Only the owner can remove members.');
-  const result = await c.env.DB.prepare("DELETE FROM members WHERE user_id = ? AND family_id = ? AND role != 'owner'").bind(target, c.get('familyId')).run();
+  const [, result] = await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM invites WHERE family_id = ? AND email IN (SELECT u.email FROM users u JOIN members m ON m.user_id = u.id WHERE u.id = ? AND m.family_id = ? AND m.role != 'owner')").bind(c.get('familyId'), target, c.get('familyId')),
+    c.env.DB.prepare("DELETE FROM members WHERE user_id = ? AND family_id = ? AND role != 'owner'").bind(target, c.get('familyId'))
+  ]);
   if (!result.meta.changes) fail(409, 'The family owner cannot be removed.');
   c.executionCtx.waitUntil(changed(c.env, c.get('familyId')));
   return c.json({ ok: true });

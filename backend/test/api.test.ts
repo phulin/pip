@@ -25,6 +25,37 @@ function activity(babyId: string) {
   return { id: crypto.randomUUID(), babyId, kind: 'breast', startedAt, endedAt: null, side: 'left', leftSeconds: 0, rightSeconds: 0, segmentStartedAt: startedAt, paused: false, volumeML: 0, milk: 'breastMilk', notes: '', deleted: false, revision: 0, mutationId: crypto.randomUUID() };
 }
 describe('Pip API', () => {
+  it('revokes outstanding reset codes only after a successful password change', async () => {
+    const a = await account(), other = await account();
+    const codes = [crypto.randomUUID().replaceAll('-', '').repeat(2), crypto.randomUUID().replaceAll('-', '').repeat(2)];
+    for (const code of codes) await env.DB.prepare('INSERT INTO password_resets VALUES (?, ?, ?)').bind(hash(code.toUpperCase()), a.user.id, Date.now() + 100000).run();
+    const otherCode = crypto.randomUUID().replaceAll('-', '').repeat(2);
+    await env.DB.prepare('INSERT INTO password_resets VALUES (?, ?, ?)').bind(hash(otherCode.toUpperCase()), other.user.id, Date.now() + 100000).run();
+    expect((await request('/v1/password', 'POST', { currentPassword: 'wrong-password', password: 'new-secure-password' }, a.token)).status).toBe(401);
+    expect((await env.DB.prepare('SELECT * FROM password_resets WHERE user_id = ?').bind(a.user.id).all()).results).toHaveLength(2);
+    const changed = await request('/v1/password', 'POST', { currentPassword: 'a-long-test-password', password: 'new-secure-password' }, a.token);
+    expect(changed.status).toBe(200);
+    expect((await request('/v1/me', 'GET', undefined, a.token)).status).toBe(401);
+    expect((await request('/v1/me', 'GET', undefined, changed.data.token)).status).toBe(200);
+    for (const code of codes) expect((await request('/auth/reset-password', 'POST', { code, password: 'attacker-password' })).status).toBe(400);
+    expect((await request('/auth/login', 'POST', { email: a.email, password: 'new-secure-password' })).status).toBe(200);
+    expect((await request('/auth/reset-password', 'POST', { code: otherCode, password: 'other-new-password' })).status).toBe(200);
+  });
+  it('revokes unused invitations when removing a caregiver, without affecting other recipients or families', async () => {
+    const owner = await family(), otherFamily = await family(), member = await account(), otherRecipient = await account();
+    const codes = Array.from({ length: 4 }, () => crypto.randomUUID().replaceAll('-', '').toUpperCase());
+    for (const code of codes.slice(0, 2)) await env.DB.prepare('INSERT INTO invites VALUES (?, ?, ?, ?)').bind(hash(code), owner.familyId, Date.now() + 100000, member.email).run();
+    await env.DB.prepare('INSERT INTO invites VALUES (?, ?, ?, ?)').bind(hash(codes[2]), otherFamily.familyId, Date.now() + 100000, member.email).run();
+    await env.DB.prepare('INSERT INTO invites VALUES (?, ?, ?, ?)').bind(hash(codes[3]), owner.familyId, Date.now() + 100000, otherRecipient.email).run();
+    expect((await request('/v1/join', 'POST', { code: codes[0] }, member.token)).status).toBe(200);
+    expect((await request(`/v1/family/members/${member.user.id}`, 'DELETE', undefined, otherFamily.token)).status).toBe(409);
+    expect(await env.DB.prepare('SELECT 1 FROM invites WHERE code_hash = ?').bind(hash(codes[1])).first()).not.toBeNull();
+    expect((await request(`/v1/family/members/${member.user.id}`, 'DELETE', undefined, owner.token)).status).toBe(200);
+    expect((await request('/v1/join', 'POST', { code: codes[1] }, member.token)).status).toBe(409);
+    expect((await request('/v1/family/babies', 'GET', undefined, member.token)).status).toBe(403);
+    expect((await request('/v1/join', 'POST', { code: codes[2] }, member.token)).status).toBe(200);
+    expect((await request('/v1/join', 'POST', { code: codes[3] }, otherRecipient.token)).status).toBe(200);
+  });
   it('stores salted password hashes and revokes sessions on logout', async () => {
     const a = await account();
     const row = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(a.user.id).first();
