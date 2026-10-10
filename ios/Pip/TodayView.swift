@@ -204,6 +204,10 @@ struct ActivityTimelineRow: View {
                     .frame(width: timeWidth, alignment: .leading)
                 Text(description(at: context.date))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .font(.title3)
             .padding(.vertical, 12)
