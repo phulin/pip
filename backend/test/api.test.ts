@@ -120,4 +120,86 @@ describe('Pip API', () => {
     expect(await env.DB.prepare('SELECT 1 FROM families WHERE id = ?').bind(a.familyId).first()).toBeNull();
     expect((await request('/v1/me', 'GET', undefined, a.token)).status).toBe(401);
   });
+  it('coordinates two caregivers without double toggles and deduplicates old command retries', async () => {
+    const owner = await family(), partner = await account();
+    await env.DB.prepare("INSERT INTO members VALUES (?, ?, 'member')").bind(partner.user.id, owner.familyId).run();
+    const log = activity(owner.babyId), path = `/v1/family/activities/${log.id}`;
+    await request(path, 'PUT', log, owner.token);
+    const command = (values: any) => ({ id: crypto.randomUUID(), occurredAt: Date.now(), ...values });
+    const switchRight = command({ side: 'right' });
+    const switched = await Promise.all([request(path + '/commands', 'POST', switchRight, owner.token), request(path + '/commands', 'POST', command({ side: 'right' }), partner.token)]);
+    expect(switched.map(r => r.status)).toEqual([200, 200]);
+    expect(switched.every(r => r.data.side === 'right')).toBe(true);
+    const pauses = await Promise.all([request(path + '/commands', 'POST', command({ paused: true }), owner.token), request(path + '/commands', 'POST', command({ paused: true }), partner.token)]);
+    expect(pauses.every(r => r.status === 200 && r.data.paused)).toBe(true);
+    const left = await request(path + '/commands', 'POST', command({ side: 'left' }), partner.token);
+    const replay = await request(path + '/commands', 'POST', switchRight, owner.token);
+    expect(replay.data.side).toBe('left');
+    expect(replay.data.revision).toBe(left.data.revision);
+    expect(replay.data.leftSeconds + replay.data.rightSeconds).toBeGreaterThanOrEqual(60);
+    await request(path + '/commands', 'POST', command({ finish: true }), owner.token);
+    const late = await request(path + '/commands', 'POST', command({ paused: false, side: 'right' }), partner.token);
+    expect(late.data.endedAt).not.toBeNull(); expect(late.data.paused).toBe(true);
+    const stranger = await family();
+    expect((await request(path + '/commands', 'POST', command({ paused: false }), stranger.token)).status).toBe(404);
+  });
+  it('merges independent edits and preserves a real same-field conflict', async () => {
+    const a = await family(), log = activity(a.babyId), path = `/v1/family/activities/${log.id}`;
+    const base = (await request(path, 'PUT', log, a.token)).data;
+    const responses = await Promise.all([
+      request(path, 'PUT', { ...base, base, notes: 'Hungry', mutationId: crypto.randomUUID() }, a.token),
+      request(path, 'PUT', { ...base, base, volumeML: 30, mutationId: crypto.randomUUID() }, a.token)
+    ]);
+    expect(responses.map(r => r.status)).toEqual([200, 200]);
+    const current = (await request('/v1/family/activities', 'GET', undefined, a.token)).data.activities[0];
+    expect(current.notes).toBe('Hungry'); expect(current.volumeML).toBe(30);
+    const conflict = await request(path, 'PUT', { ...base, base, notes: 'Different note', mutationId: crypto.randomUUID() }, a.token);
+    expect(conflict.status).toBe(409); expect(conflict.data.current.notes).toBe('Hungry');
+    // A stale notes edit must not rewind a timer switched by another caregiver.
+    await request(path + '/commands', 'POST', { id: crypto.randomUUID(), occurredAt: Date.now(), side: 'right' }, a.token);
+    const note = await request(path, 'PUT', { ...current, base: current, notes: 'Settled', mutationId: crypto.randomUUID() }, a.token);
+    expect(note.status).toBe(200); expect(note.data.side).toBe('right'); expect(note.data.notes).toBe('Settled');
+  });
+  it('returns the existing shared pump or bottle when both caregivers start', async () => {
+    const a = await family();
+    for (const kind of ['pump', 'bottle']) {
+      const first = { ...activity(a.babyId), kind }, second = { ...activity(a.babyId), kind };
+      const responses = await Promise.all([first, second].map(log => request(`/v1/family/activities/${log.id}`, 'PUT', log, a.token)));
+      expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
+      expect(responses.find(r => r.status === 409)!.data.current.id).toBe(responses.find(r => r.status === 200)!.data.id);
+    }
+  });
+  it('delivers live invalidations to both family sockets and closes a removed member', async () => {
+    const a = await family(), partner = await account();
+    await env.DB.prepare("INSERT INTO members VALUES (?, ?, 'member')").bind(partner.user.id, a.familyId).run();
+    const connect = async (token: string) => {
+      const response = await SELF.fetch('https://pip.test/v1/family/live', { headers: { Authorization: `Bearer ${token}`, Upgrade: 'websocket' } });
+      expect(response.status).toBe(101);
+      const socket = response.webSocket!; socket.accept();
+      await new Promise<void>(resolve => socket.addEventListener('message', () => resolve(), { once: true }));
+      return socket;
+    };
+    const first = await connect(a.token), second = await connect(partner.token);
+    const next = (ws: WebSocket) => new Promise(resolve => ws.addEventListener('message', resolve, { once: true }));
+    const updates = Promise.all([next(first), next(second)]);
+    const log = activity(a.babyId);
+    await request(`/v1/family/activities/${log.id}`, 'PUT', log, partner.token);
+    await updates;
+    const closed = new Promise(resolve => second.addEventListener('close', resolve, { once: true }));
+    await request(`/v1/family/members/${partner.user.id}`, 'DELETE', undefined, a.token);
+    await closed; first.close();
+  });
+  it('scopes push registrations to a signed-in device and revokes them on logout', async () => {
+    const a = await family(), other = await family(), device = crypto.randomUUID();
+    const registration = { token: 'a'.repeat(64), environment: 'sandbox' };
+    expect((await request(`/v1/family/devices/${device}`, 'PUT', registration, a.token)).status).toBe(200);
+    expect((await request(`/v1/family/devices/${device}`, 'PUT', registration, other.token)).status).toBe(403);
+    const log = activity(a.babyId); await request(`/v1/family/activities/${log.id}`, 'PUT', log, a.token);
+    expect((await request(`/v1/family/devices/${device}/activities/${log.id}`, 'PUT', { token: 'b'.repeat(64) }, other.token)).status).toBe(404);
+    expect((await request(`/v1/family/devices/${device}/activities/${log.id}`, 'PUT', { token: 'b'.repeat(64) }, a.token)).status).toBe(200);
+    await request('/v1/logout', 'POST', undefined, a.token);
+    expect(await env.DB.prepare('SELECT 1 FROM live_devices WHERE id = ?').bind(device).first()).toBeNull();
+    expect(await env.DB.prepare('SELECT 1 FROM live_tokens WHERE device_id = ?').bind(device).first()).toBeNull();
+  });
+
 });

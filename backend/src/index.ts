@@ -3,7 +3,10 @@ import { HTTPException } from 'hono/http-exception';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { hash, hashPassword, token, verifyPassword } from './security';
-export interface Env { DB: D1Database; AUTH_LIMITER: RateLimit; EMAIL?: SendEmail; EMAIL_FROM?: string }
+import { FamilyRoom } from './realtime';
+import { pushEnabled } from './push';
+export { FamilyRoom };
+export interface Env { FAMILY_ROOMS: DurableObjectNamespace<FamilyRoom>; APNS_KEY_ID?: string; APNS_TEAM_ID?: string; APNS_PRIVATE_KEY?: string; DB: D1Database; AUTH_LIMITER: RateLimit; EMAIL?: SendEmail; EMAIL_FROM?: string }
 type User = { id: string; email: string; name: string };
 const app = new Hono<{ Bindings: Env; Variables: { user: User; familyId: string; role: string } }>();
 const now = () => Date.now();
@@ -128,6 +131,38 @@ app.use('/v1/family/*', async (c, next) => {
   if (!member) return fail(403, 'Create or join a family first.');
   c.set('familyId', member.family_id); c.set('role', member.role); await next();
 });
+async function changed(env: Env, family: string, activityId?: string) {
+  await env.FAMILY_ROOMS.get(env.FAMILY_ROOMS.idFromName(family)).publish(activityId, family);
+}
+app.get('/v1/family/live', async c => {
+  const headers = new Headers(c.req.raw.headers);
+  headers.set('X-Session', hash(c.req.header('Authorization')!.replace(/^Bearer /, '')));
+  headers.set('X-Family', c.get('familyId'));
+  return c.env.FAMILY_ROOMS.get(c.env.FAMILY_ROOMS.idFromName(c.get('familyId'))).fetch(new Request(c.req.raw, { headers }));
+});
+const pushToken = z.string().regex(/^[a-f0-9]{32,512}$/);
+app.put('/v1/family/devices/:id', async c => {
+  const deviceId = id.parse(c.req.param('id'));
+  const data = z.object({ token: pushToken, environment: z.enum(['sandbox', 'production']), activeIds: z.array(id).max(20).default([]) }).parse(await c.req.json());
+  const existing = await c.env.DB.prepare('SELECT user_id, token FROM live_devices WHERE id = ?').bind(deviceId).first<{user_id: string; token: string}>();
+  if (existing && existing.user_id !== c.get('user').id) fail(403, 'Device belongs to another account.');
+  await c.env.DB.prepare('INSERT INTO live_devices VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET session_hash = excluded.session_hash, token = excluded.token, environment = excluded.environment, updated_at = excluded.updated_at').bind(deviceId, c.get('user').id, hash(c.req.header('Authorization')!.replace(/^Bearer /, '')), data.token, data.environment, now()).run();
+  for (const activityId of data.activeIds) {
+    await c.env.DB.prepare('INSERT OR IGNORE INTO live_starts SELECT ?, id FROM activities WHERE id = ? AND family_id = ?').bind(deviceId, activityId, c.get('familyId')).run();
+  }
+  const running = await c.env.DB.prepare("SELECT id FROM activities WHERE family_id = ? AND kind = 'breast' AND ended_at IS NULL AND deleted = 0").bind(c.get('familyId')).all<{id: string}>();
+  for (const a of running.results) c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), a.id));
+  return c.json({ ok: true, pushEnabled: pushEnabled(c.env) });
+});
+app.put('/v1/family/devices/:id/activities/:activityId', async c => {
+  const deviceId = id.parse(c.req.param('id')), activityId = id.parse(c.req.param('activityId'));
+  const data = z.object({ token: pushToken }).parse(await c.req.json());
+  const allowed = await c.env.DB.prepare('SELECT 1 FROM live_devices d JOIN activities a ON a.family_id = ? WHERE d.id = ? AND d.user_id = ? AND a.id = ?').bind(c.get('familyId'), deviceId, c.get('user').id, activityId).first();
+  if (!allowed) fail(404, 'Device or activity not found.');
+  await c.env.DB.prepare('INSERT INTO live_tokens VALUES (?, ?, ?) ON CONFLICT(device_id, activity_id) DO UPDATE SET token = excluded.token').bind(deviceId, activityId, data.token).run();
+  c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), activityId));
+  return c.json({ ok: true });
+});
 app.get('/v1/family/members', async c => {
   const data = await c.env.DB.prepare('SELECT u.id, u.name, m.role FROM users u JOIN members m ON m.user_id = u.id WHERE m.family_id = ? ORDER BY m.role DESC, u.name').bind(c.get('familyId')).all();
   return c.json({ members: data.results });
@@ -153,6 +188,7 @@ app.delete('/v1/family/members/:id', async c => {
   if (target !== c.get('user').id && c.get('role') !== 'owner') fail(403, 'Only the owner can remove members.');
   const result = await c.env.DB.prepare("DELETE FROM members WHERE user_id = ? AND family_id = ? AND role != 'owner'").bind(target, c.get('familyId')).run();
   if (!result.meta.changes) fail(409, 'The family owner cannot be removed.');
+  c.executionCtx.waitUntil(changed(c.env, c.get('familyId')));
   return c.json({ ok: true });
 });
 app.get('/v1/family/babies', async c => c.json({ babies: (await c.env.DB.prepare('SELECT id, name, birthday FROM babies WHERE family_id = ? ORDER BY rowid').bind(c.get('familyId')).all()).results }));
@@ -167,7 +203,7 @@ const activitySchema = z.object({
   side: z.enum(['left','right']), leftSeconds: z.number().min(0).max(604800), rightSeconds: z.number().min(0).max(604800),
   segmentStartedAt: z.number().nullable().default(null), paused: z.boolean(), volumeML: z.number().min(0).max(5000),
   milk: z.enum(['breastMilk','formula']), notes: z.string().max(2000), deleted: z.boolean(),
-  revision: z.number().int().min(0), mutationId: id
+  revision: z.number().int().min(0), mutationId: id, controlAt: z.number().nonnegative().nullable().optional()
 }).superRefine((a, ctx) => {
   if (a.startedAt > now() + 300000 || (a.endedAt !== null && (a.endedAt < a.startedAt || a.endedAt > now() + 300000))) ctx.addIssue({ code: 'custom', message: 'Invalid activity times' });
   if (a.segmentStartedAt !== null && (a.segmentStartedAt < a.startedAt || a.segmentStartedAt > now() + 300000)) ctx.addIssue({ code: 'custom', message: 'Invalid timer segment' });
@@ -183,13 +219,30 @@ app.get('/v1/family/activities', async c => {
   return c.json({ activities: page.map(decode), nextCursor: rows.results.length > 500 ? page.at(-1)!.cursor : null });
 });
 app.put('/v1/family/activities/:id', async c => {
-  const a = activitySchema.parse(await c.req.json());
+  const input = await c.req.json();
+  const original = activitySchema.parse(input);
+  for (let attempt = 0; attempt < 12; attempt++) {
+  let a = { ...original };
   if (a.id !== c.req.param('id')) fail(400, 'Activity ID mismatch');
   const db = c.env.DB;
   if (!(await db.prepare('SELECT 1 FROM babies WHERE id = ? AND family_id = ?').bind(a.babyId, c.get('familyId')).first())) fail(404, 'Baby not found');
   const existing = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE id = ? AND family_id = ?').bind(a.id, c.get('familyId')).first<ActivityRow>();
   if (existing?.mutation_id === a.mutationId) return c.json(decode(existing));
-  if (existing && existing.revision !== a.revision) return c.json({ error: 'Another caregiver updated this activity.', current: decode(existing) }, 409);
+  if (existing && existing.revision !== a.revision) {
+    const current = decode(existing);
+    const base = input.base ? activitySchema.parse(input.base) : null;
+    if (!base || base.id !== a.id) return c.json({ error: 'Another caregiver updated this activity.', current }, 409);
+    // Merge independent edits, keeping timer state as one indivisible group.
+    const groups = [['startedAt', 'endedAt', 'side', 'leftSeconds', 'rightSeconds', 'segmentStartedAt', 'paused', 'deleted', 'controlAt'], ['notes'], ['volumeML'], ['milk']];
+    const merged = { ...current, mutationId: a.mutationId };
+    for (const fields of groups) {
+      const localChanged = fields.some(k => (a as any)[k] !== (base as any)[k]);
+      const remoteChanged = fields.some(k => current[k] !== (base as any)[k]);
+      if (localChanged && remoteChanged && fields.some(k => (a as any)[k] !== current[k])) return c.json({ error: 'Both caregivers changed the same detail.', current }, 409);
+      if (localChanged) for (const k of fields) merged[k] = (a as any)[k];
+    }
+    a = activitySchema.parse(merged);
+  }
   if (!existing && a.revision !== 0) fail(409, 'Activity no longer exists.');
   let changes = 0;
   try {
@@ -198,11 +251,56 @@ app.put('/v1/family/activities/:id', async c => {
       : await db.prepare('INSERT INTO activities VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)').bind(a.id, c.get('familyId'), a.babyId, c.get('user').id, a.kind, a.startedAt, a.endedAt, JSON.stringify(a), a.mutationId, Number(a.deleted), now()).run();
     changes = result.meta.changes;
   } catch (e) {
-    if (String(e).includes('UNIQUE constraint')) return fail(409, 'A feed is already running, or this activity was just updated. Refresh and try again.');
+    if (String(e).includes('UNIQUE constraint')) {
+      const running = await db.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE baby_id = ? AND kind = ? AND ended_at IS NULL AND deleted = 0 AND family_id = ?').bind(a.babyId, a.kind, c.get('familyId')).first<ActivityRow>();
+      return c.json({ error: 'An activity is already running.', current: running ? decode(running) : undefined }, 409);
+    }
     throw e;
   }
-  if (!changes) fail(409, 'Activity changed. Refresh and try again.');
+  if (!changes) continue;
+  c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), a.id));
   return c.json({ ...a, revision: a.revision + 1, createdBy: existing?.created_by || c.get('user').id });
+  }
+  return fail(409, 'Activity is busy. Please retry.');
+});
+// Target-state commands are durable and idempotent across retries and caregivers.
+app.post('/v1/family/activities/:id/commands', async c => {
+  const activityId = id.parse(c.req.param('id'));
+  const command = z.object({ id, side: z.enum(['left', 'right']).optional(), paused: z.boolean().optional(), finish: z.boolean().optional(), volumeML: z.number().min(0).max(5000).optional(), occurredAt: z.number().nonnegative() }).parse(await c.req.json());
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const row = await c.env.DB.prepare('SELECT payload, revision, mutation_id, created_by FROM activities WHERE id = ? AND family_id = ?').bind(activityId, c.get('familyId')).first<ActivityRow>();
+    if (!row) return fail(404, 'Activity not found.');
+    const a = decode(row);
+    const receipt = await c.env.DB.prepare('SELECT activity_id FROM activity_commands WHERE id = ?').bind(command.id).first<{activity_id: string}>();
+    if (receipt) {
+      if (receipt.activity_id !== activityId) fail(409, 'Command belongs to another activity.');
+      return c.json(a);
+    }
+    // Finished/deleted activities never reopen because an offline control arrives late.
+    if (a.endedAt == null && !a.deleted) {
+      const time = Math.max(a.segmentStartedAt ?? a.startedAt, Math.min(now(), command.occurredAt));
+      const timerChanged = command.finish || (command.side !== undefined && command.side !== a.side) || (command.paused !== undefined && command.paused !== a.paused);
+      if (timerChanged && command.occurredAt >= (a.controlAt ?? a.startedAt)) {
+        a.controlAt = time;
+        if (!a.paused && a.segmentStartedAt != null) a[a.side === 'left' ? 'leftSeconds' : 'rightSeconds'] += Math.max(0, (time - a.segmentStartedAt) / 1000);
+        if (command.side !== undefined && a.kind === 'breast') a.side = command.side;
+        if (command.paused !== undefined) a.paused = command.paused;
+        if (command.finish) { a.endedAt = time; a.paused = true; }
+        a.segmentStartedAt = a.paused ? null : time;
+      }
+      if (command.volumeML !== undefined) a.volumeML = command.volumeML;
+    }
+    a.mutationId = command.id;
+    const [update] = await c.env.DB.batch([
+      c.env.DB.prepare('UPDATE activities SET ended_at = ?, payload = ?, revision = revision + 1, mutation_id = ?, updated_at = ? WHERE id = ? AND family_id = ? AND revision = ? AND NOT EXISTS (SELECT 1 FROM activity_commands WHERE id = ?)').bind(a.endedAt, JSON.stringify(a), command.id, now(), activityId, c.get('familyId'), row.revision, command.id),
+      c.env.DB.prepare('INSERT OR IGNORE INTO activity_commands SELECT ?, id, ? FROM activities WHERE id = ? AND mutation_id = ?').bind(command.id, now(), activityId, command.id)
+    ]);
+    if (update.meta.changes) {
+      c.executionCtx.waitUntil(changed(c.env, c.get('familyId'), activityId));
+      return c.json({ ...a, revision: row.revision + 1 });
+    }
+  }
+  return fail(409, 'Activity is busy. Please retry.');
 });
 app.delete('/v1/account', async c => {
   const { password } = z.object({ password: z.string().max(128) }).parse(await c.req.json());
