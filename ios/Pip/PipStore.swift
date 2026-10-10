@@ -223,7 +223,11 @@ import Network
                 if pending.contains(command.activityId) { continue }
                 do {
                     let result: CareActivity = try await API.request("v1/family/activities/\(command.activityId)/commands", method: "POST", body: JSONEncoder().encode(command), token: token)
-                    commands.removeAll { $0.id == command.id }; receive(result); persist()
+                    commands.removeAll { $0.id == command.id }
+                    // An editor can save while this request is in flight. Keep that
+                    // draft for the versioned merge instead of replacing its notes.
+                    if !pending.contains(result.id) { receive(result) }
+                    persist()
                 } catch let failure as APIError where failure.status == 404 {
                     commands.removeAll { $0.id == command.id }; persist()
                 }
